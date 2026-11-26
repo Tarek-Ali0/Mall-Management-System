@@ -77,260 +77,6 @@ const INITIAL_USERS = [
       canManageUsers: true,
     },
   },
-  {
-    id: "USR-MAINT",
-    name: "مسؤول الصيانة والتشغيل",
-    roleTitle: "فريق الصيانة",
-    badge: "Maintenance",
-    password: "1234",
-    permissions: {
-      canViewBilling: false,
-      canManageBilling: false,
-      canManageUnits: false,
-      canManageTickets: true,
-      canManageAnnouncements: false,
-      canManageSettings: false,
-      canDelete: false,
-      canManageUsers: false,
-    },
-  },
-  {
-    id: "USR-ACC",
-    name: "مسؤول الحسابات والتحصيل",
-    roleTitle: "الحسابات",
-    badge: "Billing",
-    password: "1234",
-    permissions: {
-      canViewBilling: true,
-      canManageBilling: true,
-      canManageUnits: false,
-      canManageTickets: false,
-      canManageAnnouncements: true,
-      canManageSettings: false,
-      canDelete: false,
-      canManageUsers: false,
-    },
-  },
-];
-
-const INITIAL_UNITS = [
-  {
-    id: "G-04",
-    tenant: "مطعم كوك اند غروب",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "تجاري",
-    area: "120 م² + دوبليكس",
-    rent: 35000,
-    status: "نشط",
-    expireDate: "2026-12-15",
-    floor: "الدور الأرضي",
-    phone: "01012345678",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 15000,
-  },
-  {
-    id: "F-12",
-    tenant: "مكتب الفرسان للهندسة",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "إداري",
-    area: "85 م²",
-    rent: 18000,
-    status: "تنبيه تجديد",
-    expireDate: "2026-12-10",
-    floor: "الدور الأول العلوي",
-    phone: "01123456789",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 10000,
-  },
-  {
-    id: "F-08",
-    tenant: "شركة Valict للحلول التقنية",
-    ownershipType: "مالك",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "إداري",
-    area: "150 م²",
-    rent: 0,
-    status: "مملوكة للمالك",
-    expireDate: "",
-    floor: "الدور الأول العلوي",
-    phone: "01099998877",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 20000,
-  },
-  {
-    id: "G-09",
-    tenant: "م. محمود عبد الله (مالك)",
-    ownershipType: "مالك",
-    isSubleased: true,
-    subtenantName: "سوبرماركت الراية",
-    subleaseRent: 65000,
-    subleaseExpireDate: "2027-05-20",
-    type: "تجاري",
-    area: "300 م²",
-    rent: 0,
-    status: "مؤجرة للغير",
-    expireDate: "",
-    floor: "الدور الأرضي",
-    phone: "01234567890",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 25000,
-  },
-  {
-    id: "S-02",
-    tenant: "صيدلية مصر",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "تجاري",
-    area: "90 م²",
-    rent: 28000,
-    status: "نشط",
-    expireDate: "2027-01-15",
-    floor: "الدور الأرضي",
-    phone: "01055554433",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 12000,
-  },
-  {
-    id: "F-05",
-    tenant: "عيادة د. أحمد زكي - أسنان",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "إداري",
-    area: "65 م²",
-    rent: 15000,
-    status: "متأخر في السداد",
-    expireDate: "2026-11-30",
-    floor: "الدور الثاني",
-    phone: "01188887766",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 8000,
-  },
-  {
-    id: "S-14",
-    tenant: "كافيه كوستا",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "تجاري",
-    area: "110 م²",
-    rent: 32000,
-    status: "نشط",
-    expireDate: "2026-12-28",
-    floor: "الدور الأرضي",
-    phone: "01044443322",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 15000,
-  },
-];
-
-const INITIAL_INVOICES = [
-  { id: "INV-2026-001", unitId: "G-04", tenant: "مطعم كوك اند غروب", amount: 35000, type: "إيجار شهر نوفمبر", dueDate: "2026-11-05", status: "مدفوع", paymentDate: "2026-11-03" },
-  { id: "INV-2026-002", unitId: "F-12", tenant: "مكتب الفرسان للهندسة", amount: 18000, type: "إيجار شهر نوفمبر", dueDate: "2026-11-05", status: "مدفوع", paymentDate: "2026-11-04" },
-  { id: "INV-2026-003", unitId: "F-05", tenant: "عيادة د. أحمد زكي", amount: 15000, type: "إيجار + صيانة", dueDate: "2026-11-01", status: "متأخر", paymentDate: "-" },
-  { id: "INV-2026-004", unitId: "G-09", tenant: "م. محمود عبد الله (مالك)", amount: 65000, type: "رسوم إدارة وتأجير وحدة", dueDate: "2026-11-10", status: "مدفوع", paymentDate: "2026-11-08" },
-  { id: "INV-2026-005", unitId: "S-14", tenant: "كافيه كوستا", amount: 32000, type: "صيانة ومرافق", dueDate: "2026-11-15", status: "قيد الانتظار", paymentDate: "-" },
-];
-
-const INITIAL_TICKETS = [
-  {
-    id: "TCK-101",
-    unitId: "G-04",
-    title: "عطل في التكييف المركزي بالفرع",
-    priority: "عاجل",
-    status: "new",
-    category: "تكييف",
-    date: "منذ ساعتين",
-    assignedTo: "بانتظار توجيه مسؤول الصيانة",
-    billingType: "غير محدد",
-    serviceFee: 0,
-    paymentStatus: "غير محدد",
-    approvalStatus: "غير مطلوب",
-    depositCovered: false,
-    invoiceIssued: false,
-    invoiceId: null,
-  },
-  {
-    id: "TCK-102",
-    unitId: "F-12",
-    title: "تركيب وحدة إنارة إضافية خارج العقد",
-    priority: "متوسط",
-    status: "new",
-    category: "كهرباء",
-    date: "منذ 5 ساعات",
-    assignedTo: "فني الكهرباء (علي)",
-    billingType: "خارج العقد",
-    serviceFee: 1800,
-    paymentStatus: "بانتظار الموافقة",
-    approvalStatus: "بانتظار موافقة العميل",
-    depositCovered: false,
-    invoiceIssued: false,
-    invoiceId: null,
-  },
-  {
-    id: "TCK-103",
-    unitId: "S-02",
-    title: "إنارة المدخل الخارجي للصيدلية",
-    priority: "منخفض",
-    status: "in_progress",
-    category: "كهرباء",
-    date: "أمس",
-    assignedTo: "فني الكهرباء (علي)",
-    billingType: "داخل العقد",
-    serviceFee: 0,
-    paymentStatus: "مسدد من الوديعة",
-    approvalStatus: "مغطى من وديعة الصيانة",
-    depositCovered: true,
-    invoiceIssued: false,
-    invoiceId: null,
-  },
-  {
-    id: "TCK-104",
-    unitId: "G-09",
-    title: "فحص الحساسات الخاصة بالحريق",
-    priority: "عاجل",
-    status: "resolved",
-    category: "سلامة",
-    date: "منذ يومين",
-    assignedTo: "فريق السلامة المهنية",
-    billingType: "داخل العقد",
-    serviceFee: 0,
-    paymentStatus: "مسدد من الوديعة",
-    approvalStatus: "مغطى من وديعة الصيانة",
-    depositCovered: true,
-    invoiceIssued: false,
-    invoiceId: null,
-  },
-];
-
-const INITIAL_ANNOUNCEMENTS = [
-  { id: 1, title: "صيانة دورية للمولدات الكهربائية الاحتياطية", content: "نحيطكم علماً بأنه سيتم إجراء صيانة دورية للمولدات يوم السبت القادم من الساعة 2:00 صباحاً وحتى 4:00 صباحاً.", date: "2026-11-24", priority: "هام", target: "جميع المستأجرين" },
-  { id: 2, title: "مواعيد العمل الشتوية الخاصة بالمول", content: "تم تحديث مواعيد فتح وإغلاق أبواب المول الرئيسية لتكون من الساعة 9:00 صباحاً وحتى 11:00 مساءً.", date: "2026-11-20", priority: "عادي", target: "القطاع التجاري" },
 ];
 
 const mapUserToDb = (u) => ({
@@ -493,10 +239,10 @@ export default function App() {
   const [mallConfig, setMallConfig] = useState(DEFAULT_MALL_CONFIG);
   const [draftConfig, setDraftConfig] = useState(DEFAULT_MALL_CONFIG);
 
-  const [units, setUnits] = useState(INITIAL_UNITS);
-  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
-  const [tickets, setTickets] = useState(INITIAL_TICKETS);
-  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
+  const [units, setUnits] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
 
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
   const [editingUnitOriginalId, setEditingUnitOriginalId] = useState(null);
@@ -548,7 +294,7 @@ export default function App() {
   });
 
   const [newInvoice, setNewInvoice] = useState({
-    unitId: "G-04",
+    unitId: "",
     amount: "",
     type: "إيجار شهري",
     dueDate: "2026-12-05",
@@ -556,7 +302,7 @@ export default function App() {
   });
 
   const [newTicket, setNewTicket] = useState({
-    unitId: "G-04",
+    unitId: "",
     title: "",
     priority: "متوسط",
     category: "تكييف",
@@ -569,6 +315,16 @@ export default function App() {
     priority: "عادي",
     target: "جميع المستأجرين",
   });
+
+  // استعادة جلسة الدخول من localStorage عند أول تحميل
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedUser = localStorage.getItem("mms_logged_user");
+      if (savedUser) {
+        setLoggedInUserId(savedUser);
+      }
+    }
+  }, []);
 
   const currentUser = useMemo(
     () => users.find((u) => u.id === loggedInUserId) || null,
@@ -625,33 +381,11 @@ export default function App() {
       }
     }
 
-    if (unitsRes.data.length === 0) {
-      await supabase.from("units").insert(INITIAL_UNITS.map(mapUnitToDb));
-      setUnits(INITIAL_UNITS);
-    } else {
-      setUnits(unitsRes.data.map(mapUnitFromDb));
-    }
-
-    if (invoicesRes.data.length === 0) {
-      await supabase.from("invoices").insert(INITIAL_INVOICES.map(mapInvoiceToDb));
-      setInvoices(INITIAL_INVOICES);
-    } else {
-      setInvoices(invoicesRes.data.map(mapInvoiceFromDb));
-    }
-
-    if (ticketsRes.data.length === 0) {
-      await supabase.from("tickets").insert(INITIAL_TICKETS.map(mapTicketToDb));
-      setTickets(INITIAL_TICKETS);
-    } else {
-      setTickets(ticketsRes.data.map(mapTicketFromDb));
-    }
-
-    if (announcementsRes.data.length === 0) {
-      await supabase.from("announcements").insert(INITIAL_ANNOUNCEMENTS);
-      setAnnouncements(INITIAL_ANNOUNCEMENTS);
-    } else {
-      setAnnouncements(announcementsRes.data);
-    }
+    // هنا تعديل مهم: عدم إدراج بيانات وهمية إذا كانت الجداول فارغة فعلياً
+    setUnits(unitsRes.data ? unitsRes.data.map(mapUnitFromDb) : []);
+    setInvoices(invoicesRes.data ? invoicesRes.data.map(mapInvoiceFromDb) : []);
+    setTickets(ticketsRes.data ? ticketsRes.data.map(mapTicketFromDb) : []);
+    setAnnouncements(announcementsRes.data ? announcementsRes.data : []);
   }, []);
 
   useEffect(() => {
@@ -674,6 +408,9 @@ export default function App() {
     setSearchQuery("");
     setActiveTab("overview");
     setLoggedInUserId(target.id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mms_logged_user", target.id);
+    }
   };
 
   const handleLogoutUser = () => {
@@ -682,6 +419,9 @@ export default function App() {
     setLoginError("");
     setSearchQuery("");
     setActiveTab("overview");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("mms_logged_user");
+    }
   };
 
   const handleCreateUser = async (e) => {
@@ -753,7 +493,7 @@ export default function App() {
 
   const dynamicKpis = useMemo(() => {
     const occupiedCount = units.length;
-    const occupancyRate = ((occupiedCount / totalConfiguredUnits) * 100).toFixed(1);
+    const occupancyRate = totalConfiguredUnits > 0 ? ((occupiedCount / totalConfiguredUnits) * 100).toFixed(1) : 0;
 
     const totalBilled = invoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
     const totalCollected = invoices
@@ -767,8 +507,8 @@ export default function App() {
     const expiringLeasesCount = units.filter(
       (u) =>
         u.status.includes("تنبيه") ||
-        (u.ownershipType === "مستأجر" && u.expireDate.startsWith("2026-12")) ||
-        (u.ownershipType === "مالك" && u.isSubleased && u.subleaseExpireDate.startsWith("2026-12"))
+        (u.ownershipType === "مستأجر" && u.expireDate && u.expireDate.startsWith("2026-12")) ||
+        (u.ownershipType === "مالك" && u.isSubleased && u.subleaseExpireDate && u.subleaseExpireDate.startsWith("2026-12"))
     ).length;
 
     return { occupiedCount, occupancyRate, totalBilled, totalCollected, totalPending, openTicketsCount, expiringLeasesCount };
@@ -1058,11 +798,10 @@ export default function App() {
       );
     }
 
-    setNewInvoice({ unitId: units[0]?.id || "G-04", amount: "", type: "إيجار شهري", dueDate: "2026-12-05", status: "قيد الانتظار" });
+    setNewInvoice({ unitId: units[0]?.id || "", amount: "", type: "إيجار شهري", dueDate: "2026-12-05", status: "قيد الانتظار" });
     setShowAddInvoiceModal(false);
   };
 
-  // عند الضغط على (تحصيل الآن): تتحول المطالبة إلى فاتورة محصّلة وتدخل الخزينة
   const handlePayInvoice = async (invoiceId) => {
     const today = new Date().toISOString().split("T")[0];
     setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: "مدفوع", paymentDate: today } : inv)));
@@ -1083,7 +822,6 @@ export default function App() {
     }
   };
 
-  // إضافة بلاغ صيانة بدون تسعير أو تحديد تعاقدي مسبق (يحدده مسؤول الصيانة)
   const handleAddTicket = async (e) => {
     e.preventDefault();
     if (!newTicket.unitId || !newTicket.title.trim()) return;
@@ -1119,7 +857,7 @@ export default function App() {
     }
 
     setNewTicket({
-      unitId: units[0]?.id || "G-04",
+      unitId: units[0]?.id || "",
       title: "",
       priority: "متوسط",
       category: "تكييف",
@@ -1128,7 +866,6 @@ export default function App() {
     setShowAddTicketModal(false);
   };
 
-  // تحديد مسؤول الصيانة: داخل العقد (من وديعة الصيانة) أو خارج العقد (بمبلغ وإرسال للموافقة)
   const handleEvaluateTicket = async (ticketId, { billingType, serviceFee, assignedTo }) => {
     const target = tickets.find((t) => t.id === ticketId);
     if (!target) return;
@@ -1173,7 +910,6 @@ export default function App() {
     );
   };
 
-  // تسجيل موافقة المستأجر أو المالك على المبلغ وتوجيه الفني للتنفيذ
   const handleClientApproveTicket = async (ticketId) => {
     const target = tickets.find((t) => t.id === ticketId);
     if (!target) return;
@@ -1205,7 +941,6 @@ export default function App() {
     setNoticeMessage(`تم تسجيل موافقة العميل على البلاغ ${ticketId} وتحويله إلى «قيد التنفيذ» لإرسال الفني.`);
   };
 
-  // تأكيد أن المشكلة اتحلت + إصدار مطالبة (مديونية) تلقائياً في حالة الصيانة خارج العقد لحين التحصيل
   const handleResolveAndIssueInvoice = async (ticketId) => {
     const ticket = tickets.find((t) => t.id === ticketId);
     if (!ticket) return;
@@ -1737,19 +1472,23 @@ export default function App() {
                       <button type="button" onClick={() => handleSelectTab("maintenance")} className="text-[10px] text-[#00D8F6] hover:underline">عرض الكل</button>
                     </div>
                     <div className="space-y-2.5">
-                      {tickets.slice(0, 3).map((ticket) => (
-                        <div key={ticket.id} className="bg-[#070F1B] p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-200">{ticket.title}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              الوحدة: {ticket.unitId} • {ticket.billingType}
-                            </p>
+                      {tickets.length === 0 ? (
+                        <p className="text-slate-500 text-[11px] text-center py-4">لا يوجد بلاغات صيانة حالياً</p>
+                      ) : (
+                        tickets.slice(0, 3).map((ticket) => (
+                          <div key={ticket.id} className="bg-[#070F1B] p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-semibold text-slate-200">{ticket.title}</p>
+                              <p className="text-[10px] text-slate-400 mt-0.5">
+                                الوحدة: {ticket.unitId} • {ticket.billingType}
+                              </p>
+                            </div>
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-slate-800 text-slate-300 border-slate-700"}`}>
+                              {ticket.priority}
+                            </span>
                           </div>
-                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-slate-800 text-slate-300 border-slate-700"}`}>
-                            {ticket.priority}
-                          </span>
-                        </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1796,78 +1535,84 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                      {filteredUnits.map((unit) => {
-                        const isOwner = unit.ownershipType === "مالك";
-                        const historyCount = Array.isArray(unit.contractHistory) ? unit.contractHistory.length : 0;
-                        return (
-                          <tr key={unit.id} className="hover:bg-slate-800/40 transition">
-                            <td className="p-4 font-bold text-[#00D8F6]">
-                              {unit.id}
-                              <span className="block text-[10px] text-slate-400 font-normal">{unit.floor} • {unit.area}</span>
-                              {historyCount > 0 && (
-                                <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px]">
-                                  <History className="w-2.5 h-2.5 text-[#00D8F6]" /> سجل سابق ({historyCount})
+                      {filteredUnits.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="p-8 text-center text-slate-500">لا توجد وحدات مضافة بعد. اضغط على "إضافة وحدة جديدة" للبدء.</td>
+                        </tr>
+                      ) : (
+                        filteredUnits.map((unit) => {
+                          const isOwner = unit.ownershipType === "مالك";
+                          const historyCount = Array.isArray(unit.contractHistory) ? unit.contractHistory.length : 0;
+                          return (
+                            <tr key={unit.id} className="hover:bg-slate-800/40 transition">
+                              <td className="p-4 font-bold text-[#00D8F6]">
+                                {unit.id}
+                                <span className="block text-[10px] text-slate-400 font-normal">{unit.floor} • {unit.area}</span>
+                                {historyCount > 0 && (
+                                  <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px]">
+                                    <History className="w-2.5 h-2.5 text-[#00D8F6]" /> سجل سابق ({historyCount})
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4">
+                                <p className="font-bold text-slate-100">{unit.tenant}</p>
+                                <p className="text-[10px] text-slate-400">{unit.phone}</p>
+                                <p className="text-[10px] text-[#00D8F6] font-mono mt-0.5">باسورد الدخول: {unit.portalPassword || "1234"}</p>
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isOwner ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"}`}>
+                                  {unit.ownershipType}
                                 </span>
-                              )}
-                            </td>
-                            <td className="p-4">
-                              <p className="font-bold text-slate-100">{unit.tenant}</p>
-                              <p className="text-[10px] text-slate-400">{unit.phone}</p>
-                              <p className="text-[10px] text-[#00D8F6] font-mono mt-0.5">باسورد الدخول: {unit.portalPassword || "1234"}</p>
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isOwner ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"}`}>
-                                {unit.ownershipType}
-                              </span>
-                            </td>
-                            <td className="p-4 text-slate-300 space-y-0.5">
-                              {isOwner ? (
-                                unit.isSubleased ? (
-                                  <>
-                                    <p className="text-emerald-400 font-semibold">مؤجر للغير: {unit.subtenantName || "مستأجر فرعي"}</p>
-                                    <p className="text-[10px] text-slate-400">قيمة إيجار التأجير: {Number(unit.subleaseRent || 0).toLocaleString()} ج.م</p>
-                                  </>
+                              </td>
+                              <td className="p-4 text-slate-300 space-y-0.5">
+                                {isOwner ? (
+                                  unit.isSubleased ? (
+                                    <>
+                                      <p className="text-emerald-400 font-semibold">مؤجر للغير: {unit.subtenantName || "مستأجر فرعي"}</p>
+                                      <p className="text-[10px] text-slate-400">قيمة إيجار التأجير: {Number(unit.subleaseRent || 0).toLocaleString()} ج.م</p>
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-400">بدون عقد إيجار (ملك خاص)</span>
+                                  )
                                 ) : (
-                                  <span className="text-slate-400">بدون عقد إيجار (ملك خاص)</span>
-                                )
-                              ) : (
-                                <p className="font-bold text-emerald-400">{Number(unit.rent || 0).toLocaleString()} ج.م / شهر</p>
-                              )}
-                              <p className="text-[10px] text-cyan-300">وديعة الصيانة: {Number(unit.maintenanceDeposit || 0).toLocaleString()} ج.م</p>
-                            </td>
-                            <td className="p-4 text-slate-300">
-                              {isOwner ? (unit.isSubleased ? unit.subleaseExpireDate || "-" : "لا يوجد عقد إيجار") : unit.expireDate || "-"}
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${unit.status.includes("نشط") || unit.status.includes("مالك") || unit.status.includes("مؤجرة") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : unit.status.includes("تنبيه") ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30"}`}>
-                                {unit.status}
-                              </span>
-                            </td>
-                            <td className="p-4 text-center">
-                              <div className="inline-flex items-center gap-1.5">
-                                {perms.canManageUnits && (
-                                  <button
-                                    type="button"
-                                    onClick={() => openEditUnitModal(unit)}
-                                    className="bg-[#00D8F6]/10 hover:bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                                  >
-                                    <Pencil className="w-3 h-3" /> تعديل
-                                  </button>
+                                  <p className="font-bold text-emerald-400">{Number(unit.rent || 0).toLocaleString()} ج.م / شهر</p>
                                 )}
-                                {perms.canDelete && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRequestDeleteUnit(unit)}
-                                    className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                                  >
-                                    <Trash2 className="w-3 h-3" /> حذف
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                                <p className="text-[10px] text-cyan-300">وديعة الصيانة: {Number(unit.maintenanceDeposit || 0).toLocaleString()} ج.م</p>
+                              </td>
+                              <td className="p-4 text-slate-300">
+                                {isOwner ? (unit.isSubleased ? unit.subleaseExpireDate || "-" : "لا يوجد عقد إيجار") : unit.expireDate || "-"}
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${unit.status.includes("نشط") || unit.status.includes("مالك") || unit.status.includes("مؤجرة") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : unit.status.includes("تنبيه") ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30"}`}>
+                                  {unit.status}
+                                </span>
+                              </td>
+                              <td className="p-4 text-center">
+                                <div className="inline-flex items-center gap-1.5">
+                                  {perms.canManageUnits && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditUnitModal(unit)}
+                                      className="bg-[#00D8F6]/10 hover:bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                    >
+                                      <Pencil className="w-3 h-3" /> تعديل
+                                    </button>
+                                  )}
+                                  {perms.canDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRequestDeleteUnit(unit)}
+                                      className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                    >
+                                      <Trash2 className="w-3 h-3" /> حذف
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1939,50 +1684,56 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {filteredInvoices.map((inv) => {
-                        const isPaid = inv.status === "مدفوع";
-                        return (
-                          <tr key={inv.id} className="hover:bg-slate-800/40 transition">
-                            <td className="p-3 font-mono font-semibold text-slate-300">{inv.id}</td>
-                            <td className="p-3 font-bold text-slate-100">{inv.tenant} ({inv.unitId})</td>
-                            <td className="p-3 text-slate-300">{inv.type}</td>
-                            <td className="p-3 font-bold text-white">{inv.amount.toLocaleString()} ج.م</td>
-                            <td className="p-3 text-slate-400">{inv.dueDate}</td>
-                            <td className="p-3">
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                                  isPaid
-                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                                    : inv.status === "متأخر"
-                                      ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                                      : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                                }`}
-                              >
-                                {isPaid ? "محصّل (فاتورة)" : inv.status === "متأخر" ? "مطالبة متأخرة" : "مطالبة (مديونية)"}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center flex items-center justify-center gap-2">
-                              {perms.canManageBilling && !isPaid && (
-                                <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
-                                  تحصيل الآن
-                                </button>
-                              )}
-                              <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
-                                <Printer className="w-3 h-3" /> {isPaid ? "الإيصال" : "بيان مطالبة"}
-                              </button>
-                              {perms.canDelete && (
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `${isPaid ? "الفاتورة" : "المطالبة"} ${inv.id}` })}
-                                  className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                      {filteredInvoices.length === 0 ? (
+                        <tr>
+                          <td colSpan="7" className="p-8 text-center text-slate-500">لا توجد مطالبات أو فواتير مسجلة.</td>
+                        </tr>
+                      ) : (
+                        filteredInvoices.map((inv) => {
+                          const isPaid = inv.status === "مدفوع";
+                          return (
+                            <tr key={inv.id} className="hover:bg-slate-800/40 transition">
+                              <td className="p-3 font-mono font-semibold text-slate-300">{inv.id}</td>
+                              <td className="p-3 font-bold text-slate-100">{inv.tenant} ({inv.unitId})</td>
+                              <td className="p-3 text-slate-300">{inv.type}</td>
+                              <td className="p-3 font-bold text-white">{inv.amount.toLocaleString()} ج.م</td>
+                              <td className="p-3 text-slate-400">{inv.dueDate}</td>
+                              <td className="p-3">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                    isPaid
+                                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                      : inv.status === "متأخر"
+                                        ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                        : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                  }`}
                                 >
-                                  <Trash2 className="w-3 h-3" /> حذف
+                                  {isPaid ? "محصّل (فاتورة)" : inv.status === "متأخر" ? "مطالبة متأخرة" : "مطالبة (مديونية)"}
+                                </span>
+                              </td>
+                              <td className="p-3 text-center flex items-center justify-center gap-2">
+                                {perms.canManageBilling && !isPaid && (
+                                  <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
+                                    تحصيل الآن
+                                  </button>
+                                )}
+                                <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
+                                  <Printer className="w-3 h-3" /> {isPaid ? "الإيصال" : "بيان مطالبة"}
                                 </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                                {perms.canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `${isPaid ? "الفاتورة" : "المطالبة"} ${inv.id}` })}
+                                    className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                  >
+                                    <Trash2 className="w-3 h-3" /> حذف
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -2077,33 +1828,37 @@ export default function App() {
               </div>
 
               <div className="space-y-4">
-                {announcements.map((item) => (
-                  <div key={item.id} className="bg-[#0B192C] p-5 rounded-2xl border border-slate-800 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${item.priority === "هام" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-[#00D8F6]/20 text-[#00D8F6] border-[#00D8F6]/30"}`}>{item.priority}</span>
-                        <h3 className="font-bold text-slate-100 text-sm">{item.title}</h3>
+                {announcements.length === 0 ? (
+                  <div className="bg-[#0B192C] p-8 text-center text-slate-500 rounded-2xl border border-slate-800">لا توجد تنبيهات مرسلة حالياً.</div>
+                ) : (
+                  announcements.map((item) => (
+                    <div key={item.id} className="bg-[#0B192C] p-5 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${item.priority === "هام" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-[#00D8F6]/20 text-[#00D8F6] border-[#00D8F6]/30"}`}>{item.priority}</span>
+                          <h3 className="font-bold text-slate-100 text-sm">{item.title}</h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400">{item.date}</span>
+                          {perms.canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                            >
+                              <Trash2 className="w-3 h-3" /> حذف
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] text-slate-400">{item.date}</span>
-                        {perms.canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
-                            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                          >
-                            <Trash2 className="w-3 h-3" /> حذف
-                          </button>
-                        )}
+                      <p className="text-xs text-slate-300 leading-relaxed">{item.content}</p>
+                      <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+                        <span>المستهدف: <strong className="text-slate-200">{item.target}</strong></span>
+                        <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> تم الإرسال</span>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">{item.content}</p>
-                    <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
-                      <span>المستهدف: <strong className="text-slate-200">{item.target}</strong></span>
-                      <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> تم الإرسال</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -2758,6 +2513,7 @@ export default function App() {
             <div>
               <label className="block text-slate-400 mb-1 font-semibold">الوحدة / الطرف</label>
               <select value={newInvoice.unitId} onChange={(e) => setNewInvoice({ ...newInvoice, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                <option value="">اختر الوحدة...</option>
                 {units.map((u) => (
                   <option key={u.id} value={u.id}>{u.id} - {u.tenant} ({u.ownershipType})</option>
                 ))}
@@ -2805,6 +2561,7 @@ export default function App() {
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">الوحدة</label>
                 <select value={newTicket.unitId} onChange={(e) => setNewTicket({ ...newTicket, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="">اختر الوحدة...</option>
                   {units.map((u) => (
                     <option key={u.id} value={u.id}>{u.id} - {u.tenant}</option>
                   ))}
