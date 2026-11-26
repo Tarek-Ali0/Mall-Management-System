@@ -41,10 +41,10 @@ import { supabase } from "../lib/supabaseClient";
 const DEFAULT_MALL_CONFIG = {
   mallName: "مول الماسة 1",
   floors: [
-    { id: "ground", name: "الدور الأرضي", category: "تجاري (محلات)", unitsCount: 40, notes: "محلات تجارية رئيسية" },
-    { id: "duplex", name: "دور الدوبليكس", category: "دوبليكس تجاري", unitsCount: 20, notes: "ملحق علوي لبعض الوحدات التجارية بالدور الأرضي" },
-    { id: "first", name: "الدور الأول العلوي", category: "إداري", unitsCount: 30, notes: "مكاتب وخدمات" },
-    { id: "second", name: "الدور الثاني", category: "إداري", unitsCount: 30, notes: "وحدات إدارية وخدمات" },
+    { id: "ground", code: "G", name: "الدور الأرضي", category: "تجاري (محلات)", unitsCount: 40, notes: "محلات تجارية رئيسية" },
+    { id: "duplex", code: "DX", name: "دور الدوبليكس", category: "دوبليكس تجاري", unitsCount: 20, notes: "ملحق علوي لبعض الوحدات التجارية بالدور الأرضي" },
+    { id: "first", code: "F1", name: "الدور الأول العلوي", category: "إداري", unitsCount: 30, notes: "مكاتب وخدمات" },
+    { id: "second", code: "F2", name: "الدور الثاني", category: "إداري", unitsCount: 30, notes: "وحدات إدارية وخدمات" },
   ],
 };
 
@@ -66,16 +66,7 @@ const INITIAL_USERS = [
     roleTitle: "إدارة المول",
     badge: "Admin Access",
     password: "admin",
-    permissions: {
-      canViewBilling: true,
-      canManageBilling: true,
-      canManageUnits: true,
-      canManageTickets: true,
-      canManageAnnouncements: true,
-      canManageSettings: true,
-      canDelete: true,
-      canManageUsers: true,
-    },
+    permissions: Object.fromEntries(ALL_PERMISSION_KEYS.map((p) => [p.key, true])),
   },
 ];
 
@@ -94,16 +85,7 @@ const mapUserFromDb = (row) => ({
   roleTitle: row.role_title || "مستخدم",
   badge: row.badge || "Staff",
   password: row.password || "1234",
-  permissions: {
-    canViewBilling: Boolean(row.permissions?.canViewBilling),
-    canManageBilling: Boolean(row.permissions?.canManageBilling),
-    canManageUnits: Boolean(row.permissions?.canManageUnits),
-    canManageTickets: Boolean(row.permissions?.canManageTickets),
-    canManageAnnouncements: Boolean(row.permissions?.canManageAnnouncements),
-    canManageSettings: Boolean(row.permissions?.canManageSettings),
-    canDelete: Boolean(row.permissions?.canDelete),
-    canManageUsers: Boolean(row.permissions?.canManageUsers),
-  },
+  permissions: Object.fromEntries(ALL_PERMISSION_KEYS.map((p) => [p.key, Boolean(row.permissions?.[p.key])])),
 });
 
 const mapUnitToDb = (u) => ({
@@ -275,8 +257,9 @@ export default function App() {
     },
   });
 
+  const initialFloor = DEFAULT_MALL_CONFIG.floors[0];
   const [newUnit, setNewUnit] = useState({
-    id: "",
+    id: initialFloor?.code ? `${initialFloor.code}-` : "",
     tenant: "",
     ownershipType: "مستأجر",
     isSubleased: false,
@@ -287,7 +270,7 @@ export default function App() {
     area: "",
     rent: "",
     expireDate: "",
-    floor: DEFAULT_MALL_CONFIG.floors[0].name,
+    floor: initialFloor?.name || "الدور الأرضي",
     phone: "",
     portalPassword: "",
     maintenanceDeposit: "10000",
@@ -316,13 +299,10 @@ export default function App() {
     target: "جميع المستأجرين",
   });
 
-  // استعادة جلسة الدخول من localStorage عند أول تحميل
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedUser = localStorage.getItem("mms_logged_user");
-      if (savedUser) {
-        setLoggedInUserId(savedUser);
-      }
+      if (savedUser) setLoggedInUserId(savedUser);
     }
   }, []);
 
@@ -334,12 +314,8 @@ export default function App() {
   const handleSelectTab = useCallback((tabName) => {
     setActiveTab(tabName);
     setSearchQuery("");
-    if (tabName !== "units") {
-      setUnitFilter("الكل");
-    }
-    if (tabName !== "billing") {
-      setInvoiceFilter("الكل");
-    }
+    if (tabName !== "units") setUnitFilter("الكل");
+    if (tabName !== "billing") setInvoiceFilter("الكل");
   }, []);
 
   const loadFromSupabase = useCallback(async () => {
@@ -355,19 +331,30 @@ export default function App() {
     ]);
 
     if (unitsRes.error || invoicesRes.error || ticketsRes.error || announcementsRes.error) {
-      setNoticeMessage("تعذر قراءة بعض جداول Supabase؛ تأكد من تنفيذ كود إنشاء الجداول والصلاحيات.");
+      setNoticeMessage("تعذر قراءة بعض جداول Supabase؛ تأكد من إنشاء الجداول والصلاحيات.");
       return;
     }
 
     setDbConnected(true);
 
-    if (!settingsRes.error && settingsRes.data?.floors) {
+    if (!settingsRes.error && Array.isArray(settingsRes.data?.floors)) {
+      const normalizedFloors = settingsRes.data.floors.map((f, idx) => ({
+        ...f,
+        code: (f.code || `F${idx + 1}`).trim(),
+      }));
       const loadedConfig = {
         mallName: settingsRes.data.mall_name || DEFAULT_MALL_CONFIG.mallName,
-        floors: settingsRes.data.floors,
+        floors: normalizedFloors,
       };
       setMallConfig(loadedConfig);
       setDraftConfig(loadedConfig);
+      if (normalizedFloors[0]) {
+        setNewUnit((prev) => ({
+          ...prev,
+          floor: normalizedFloors[0].name,
+          id: prev.id || (normalizedFloors[0].code ? `${normalizedFloors[0].code}-` : ""),
+        }));
+      }
     }
 
     if (!usersRes.error) {
@@ -381,25 +368,41 @@ export default function App() {
       }
     }
 
-    // هنا تعديل مهم: عدم إدراج بيانات وهمية إذا كانت الجداول فارغة فعلياً
     setUnits(unitsRes.data ? unitsRes.data.map(mapUnitFromDb) : []);
     setInvoices(invoicesRes.data ? invoicesRes.data.map(mapInvoiceFromDb) : []);
     setTickets(ticketsRes.data ? ticketsRes.data.map(mapTicketFromDb) : []);
-    setAnnouncements(announcementsRes.data ? announcementsRes.data : []);
+    setAnnouncements(announcementsRes.data || []);
   }, []);
 
   useEffect(() => {
     loadFromSupabase();
   }, [loadFromSupabase]);
 
+  const handleFloorSelectionInAddUnit = (floorName) => {
+    const matchedFloor = mallConfig.floors.find((f) => f.name === floorName);
+    const nextCode = (matchedFloor?.code || "").trim();
+    const existingCodes = mallConfig.floors
+      .map((f) => (f.code || "").trim())
+      .filter(Boolean);
+
+    setNewUnit((prev) => {
+      const currentId = prev.id.trim();
+      const isEmptyOrJustPrefix =
+        !currentId ||
+        existingCodes.some((c) => currentId === c || currentId === `${c}-`);
+
+      return {
+        ...prev,
+        floor: floorName,
+        id: isEmptyOrJustPrefix ? (nextCode ? `${nextCode}-` : "") : prev.id,
+      };
+    });
+  };
+
   const handleLoginSubmit = (e) => {
     e.preventDefault();
     const target = users.find((u) => u.id === selectedUserId);
-    if (!target) {
-      setLoginError("اختر مستخدماً صحيحاً.");
-      return;
-    }
-    if (String(target.password || "") !== loginPasswordInput) {
+    if (!target || String(target.password || "") !== loginPasswordInput) {
       setLoginError("كلمة المرور غير صحيحة لهذا المستخدم.");
       return;
     }
@@ -408,9 +411,7 @@ export default function App() {
     setSearchQuery("");
     setActiveTab("overview");
     setLoggedInUserId(target.id);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("mms_logged_user", target.id);
-    }
+    if (typeof window !== "undefined") localStorage.setItem("mms_logged_user", target.id);
   };
 
   const handleLogoutUser = () => {
@@ -419,9 +420,7 @@ export default function App() {
     setLoginError("");
     setSearchQuery("");
     setActiveTab("overview");
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("mms_logged_user");
-    }
+    if (typeof window !== "undefined") localStorage.removeItem("mms_logged_user");
   };
 
   const handleCreateUser = async (e) => {
@@ -438,16 +437,13 @@ export default function App() {
     };
 
     setUsers((prev) => [...prev, created]);
-
     if (supabase) {
       const { error } = await supabase.from("portal_users").upsert(mapUserToDb(created));
       setNoticeMessage(
         error
-          ? `تم إنشاء المستخدم محلياً لكن فشل حفظه في Supabase: ${error.message}`
-          : `تم إنشاء المستخدم "${created.name}" وحفظ صلاحياته في قاعدة البيانات.`
+          ? `تم إنشاء المستخدم محلياً لكن فشل الحفظ في Supabase: ${error.message}`
+          : `تم إنشاء المستخدم "${created.name}" وحفظ صلاحياته.`
       );
-    } else {
-      setNoticeMessage(`تم إنشاء المستخدم "${created.name}".`);
     }
 
     setNewUserForm({
@@ -471,16 +467,8 @@ export default function App() {
   const handleToggleUserPermission = async (userId, permKey) => {
     const target = users.find((u) => u.id === userId);
     if (!target) return;
-
-    const nextPerms = {
-      ...target.permissions,
-      [permKey]: !target.permissions[permKey],
-    };
-
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, permissions: nextPerms } : u))
-    );
-
+    const nextPerms = { ...target.permissions, [permKey]: !target.permissions[permKey] };
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, permissions: nextPerms } : u)));
     if (supabase) {
       await supabase.from("portal_users").update({ permissions: nextPerms }).eq("id", userId);
     }
@@ -494,15 +482,9 @@ export default function App() {
   const dynamicKpis = useMemo(() => {
     const occupiedCount = units.length;
     const occupancyRate = totalConfiguredUnits > 0 ? ((occupiedCount / totalConfiguredUnits) * 100).toFixed(1) : 0;
-
     const totalBilled = invoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-    const totalCollected = invoices
-      .filter((i) => i.status === "مدفوع")
-      .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-    const totalPending = invoices
-      .filter((i) => i.status !== "مدفوع")
-      .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-
+    const totalCollected = invoices.filter((i) => i.status === "مدفوع").reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+    const totalPending = invoices.filter((i) => i.status !== "مدفوع").reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
     const openTicketsCount = tickets.filter((t) => t.status !== "resolved").length;
     const expiringLeasesCount = units.filter(
       (u) =>
@@ -516,9 +498,10 @@ export default function App() {
 
   const handleSaveSettings = async (e) => {
     e.preventDefault();
-    const cleanedFloors = draftConfig.floors.map((f) => ({
+    const cleanedFloors = draftConfig.floors.map((f, idx) => ({
       ...f,
-      name: f.name.trim() || "دور",
+      code: (f.code || `F${idx + 1}`).trim(),
+      name: f.name.trim() || `دور ${idx + 1}`,
       unitsCount: Math.max(0, Number(f.unitsCount) || 0),
     }));
     const updatedConfig = {
@@ -539,21 +522,23 @@ export default function App() {
       setNoticeMessage(
         error
           ? `تم حفظ الإعدادات محلياً لكن فشل حفظها في قاعدة البيانات: ${error.message}`
-          : "تم حفظ إعدادات المول والأدوار وعدد الوحدات لكل دور بنجاح."
+          : "تم حفظ إعدادات المول وأكواد وأسماء الأدوار بنجاح."
       );
     } else {
-      setNoticeMessage("تم تحديث إعدادات المول.");
+      setNoticeMessage("تم تحديث إعدادات المول وأكواد الأدوار.");
     }
   };
 
   const handleAddFloorRow = () => {
+    const nextIndex = draftConfig.floors.length + 1;
     setDraftConfig((prev) => ({
       ...prev,
       floors: [
         ...prev.floors,
         {
           id: `floor-${Date.now()}`,
-          name: `دور جديد ${prev.floors.length + 1}`,
+          code: `F${nextIndex}`,
+          name: `دور جديد ${nextIndex}`,
           category: "إداري",
           unitsCount: 20,
           notes: "",
@@ -587,18 +572,18 @@ export default function App() {
     };
 
     setUnits((prev) => [...prev, unitRecord]);
-
     if (supabase) {
       const { error } = await supabase.from("units").upsert(mapUnitToDb(unitRecord));
       setNoticeMessage(
         error
           ? `تمت الإضافة محلياً لكن حدث خطأ في حفظ قاعدة البيانات: ${error.message}`
-          : `تم حفظ الوحدة ${unitRecord.id} (${unitRecord.ownershipType}) في قاعدة البيانات بنجاح.`
+          : `تم حفظ الوحدة ${unitRecord.id} (${unitRecord.ownershipType}) بنجاح.`
       );
     }
 
+    const firstFloor = mallConfig.floors[0];
     setNewUnit({
-      id: "",
+      id: firstFloor?.code ? `${firstFloor.code}-` : "",
       tenant: "",
       ownershipType: "مستأجر",
       isSubleased: false,
@@ -609,7 +594,7 @@ export default function App() {
       area: "",
       rent: "",
       expireDate: "",
-      floor: mallConfig.floors[0]?.name || "الدور الأرضي",
+      floor: firstFloor?.name || "الدور الأرضي",
       phone: "",
       portalPassword: "",
       maintenanceDeposit: "10000",
@@ -714,9 +699,7 @@ export default function App() {
       contractHistory: nextHistory,
     };
 
-    setUnits((prev) =>
-      prev.map((u) => (u.id === editingUnitOriginalId ? updatedRecord : u))
-    );
+    setUnits((prev) => prev.map((u) => (u.id === editingUnitOriginalId ? updatedRecord : u)));
 
     if (supabase) {
       const { error: upsertErr } = await supabase.from("units").upsert(mapUnitToDb(updatedRecord));
@@ -726,14 +709,8 @@ export default function App() {
         if (newId !== editingUnitOriginalId) {
           await supabase.from("units").delete().eq("id", editingUnitOriginalId);
         }
-        setNoticeMessage(
-          editUnitForm.archiveCurrentContract
-            ? `تم أرشفة العقد/التشغيل السابق وحفظ تحديثات الوحدة ${updatedRecord.id} مع الاحتفاظ بالسجل التاريخي والفواتير.`
-            : `تم تحديث بيانات الوحدة ${updatedRecord.id} (${updatedRecord.ownershipType}) بنجاح.`
-        );
+        setNoticeMessage(`تم تحديث بيانات الوحدة ${updatedRecord.id} بنجاح.`);
       }
-    } else {
-      setNoticeMessage(`تم تحديث بيانات الوحدة ${updatedRecord.id}.`);
     }
 
     setEditingUnitOriginalId(null);
@@ -747,16 +724,8 @@ export default function App() {
     );
 
     if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
-      const unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
-      const reasons = [];
-      if (unpaidInvoices.length > 0) {
-        reasons.push(`${unpaidInvoices.length} مطالبة/فاتورة غير محصلة بإجمالي ${unpaidTotal.toLocaleString()} ج.م`);
-      }
-      if (openOrUnpaidTickets.length > 0) {
-        reasons.push(`${openOrUnpaidTickets.length} بلاغ صيانة لم يُغلق أو لم تُصدر مطالبته بعد`);
-      }
       setNoticeMessage(
-        `لا يمكن حذف الوحدة ${unit.id} (${unit.tenant}) لوجود: ${reasons.join(" و")}؛ يجب تحصيل أو تسوية المطالبات وإغلاق البلاغات أولاً (أو أرشفة العقد السابق بدلاً من الحذف).`
+        `لا يمكن حذف الوحدة ${unit.id} لوجود مطالبات غير محصلة أو بلاغات صيانة معلقة؛ يجب تسويتها أو إغلاقها أولاً.`
       );
       return;
     }
@@ -770,14 +739,13 @@ export default function App() {
     if (!newInvoice.unitId || !amountNum || amountNum <= 0) return;
 
     const matchedUnit = units.find((u) => u.id === newInvoice.unitId);
-    const tenantName = matchedUnit ? matchedUnit.tenant : `وحدة ${newInvoice.unitId}`;
     const invoiceId = `INV-2026-${String(invoices.length + 1).padStart(3, "0")}-${Math.floor(10 + Math.random() * 89)}`;
     const today = new Date().toISOString().split("T")[0];
 
     const invoiceRecord = {
       id: invoiceId,
       unitId: newInvoice.unitId,
-      tenant: tenantName,
+      tenant: matchedUnit ? matchedUnit.tenant : `وحدة ${newInvoice.unitId}`,
       amount: amountNum,
       type: newInvoice.type.trim() || "إيجار شهري",
       dueDate: newInvoice.dueDate || today,
@@ -786,16 +754,8 @@ export default function App() {
     };
 
     setInvoices((prev) => [invoiceRecord, ...prev]);
-
     if (supabase) {
-      const { error } = await supabase.from("invoices").upsert(mapInvoiceToDb(invoiceRecord));
-      setNoticeMessage(
-        error
-          ? `تم تسجيل السجل محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : invoiceRecord.status === "مدفوع"
-            ? `تم إنشاء الفاتورة المحصّلة ${invoiceRecord.id} وإدخال المبلغ في الخزينة.`
-            : `تم تسجيل المطالبة (مديونية) ${invoiceRecord.id} للوحدة ${invoiceRecord.unitId} لحين التحصيل.`
-      );
+      await supabase.from("invoices").upsert(mapInvoiceToDb(invoiceRecord));
     }
 
     setNewInvoice({ unitId: units[0]?.id || "", amount: "", type: "إيجار شهري", dueDate: "2026-12-05", status: "قيد الانتظار" });
@@ -805,30 +765,18 @@ export default function App() {
   const handlePayInvoice = async (invoiceId) => {
     const today = new Date().toISOString().split("T")[0];
     setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: "مدفوع", paymentDate: today } : inv)));
-
     if (supabase) {
-      const { error } = await supabase
-        .from("invoices")
-        .update({ status: "مدفوع", payment_date: today })
-        .eq("id", invoiceId);
-
-      setNoticeMessage(
-        error
-          ? `تم تحويل المطالبة ${invoiceId} إلى محصّلة محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : `تم تحصيل المطالبة ${invoiceId} وتحويلها إلى فاتورة محصّلة وإدخال المبلغ في الخزينة.`
-      );
-    } else {
-      setNoticeMessage(`تم تحصيل المطالبة ${invoiceId} وتحويلها إلى فاتورة محصّلة وإدخال المبلغ في الخزينة.`);
+      await supabase.from("invoices").update({ status: "مدفوع", payment_date: today }).eq("id", invoiceId);
     }
+    setNoticeMessage(`تم تحصيل المطالبة ${invoiceId} وإدخال المبلغ في الخزينة.`);
   };
 
   const handleAddTicket = async (e) => {
     e.preventDefault();
     if (!newTicket.unitId || !newTicket.title.trim()) return;
 
-    const ticketId = `TCK-${Math.floor(200 + Math.random() * 799)}`;
     const ticketRecord = {
-      id: ticketId,
+      id: `TCK-${Math.floor(200 + Math.random() * 799)}`,
       unitId: newTicket.unitId,
       title: newTicket.title.trim(),
       priority: newTicket.priority,
@@ -846,14 +794,8 @@ export default function App() {
     };
 
     setTickets((prev) => [ticketRecord, ...prev]);
-
     if (supabase) {
-      const { error } = await supabase.from("tickets").upsert(mapTicketToDb(ticketRecord));
-      setNoticeMessage(
-        error
-          ? `تم تسجيل البلاغ محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : `تم تسجيل البلاغ ${ticketRecord.id}؛ يمكن لمسؤول الصيانة الآن تحديد هل هو داخل العقد أو خارجه.`
-      );
+      await supabase.from("tickets").upsert(mapTicketToDb(ticketRecord));
     }
 
     setNewTicket({
@@ -867,54 +809,42 @@ export default function App() {
   };
 
   const handleEvaluateTicket = async (ticketId, { billingType, serviceFee, assignedTo }) => {
-    const target = tickets.find((t) => t.id === ticketId);
-    if (!target) return;
-
     const isInside = billingType === "داخل العقد";
     const feeNum = isInside ? 0 : Math.max(0, Number(serviceFee) || 0);
-
     if (!isInside && feeNum <= 0) {
-      setNoticeMessage(`يرجى إدخال مبلغ الصيانة خارج العقد للبلاغ ${ticketId} قبل إرساله للموافقة.`);
+      setNoticeMessage(`يرجى إدخال مبلغ الصيانة خارج العقد للبلاغ ${ticketId}.`);
       return;
     }
 
-    const updatedPatch = {
+    const patch = {
       billingType,
       serviceFee: feeNum,
-      assignedTo: assignedTo?.trim() || (isInside ? "فني الصيانة" : "بانتظار موافقة العميل لإرسال الفني"),
+      assignedTo: assignedTo?.trim() || (isInside ? "فني الصيانة" : "بانتظار موافقة العميل"),
       depositCovered: isInside,
       approvalStatus: isInside ? "مغطى من وديعة الصيانة" : "بانتظار موافقة العميل",
       paymentStatus: isInside ? "مسدد من الوديعة" : "بانتظار الموافقة",
     };
 
-    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...updatedPatch } : t)));
-
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...patch } : t)));
     if (supabase) {
       await supabase
         .from("tickets")
         .update({
-          billing_type: updatedPatch.billingType,
-          service_fee: updatedPatch.serviceFee,
-          assigned_to: updatedPatch.assignedTo,
-          deposit_covered: updatedPatch.depositCovered,
-          approval_status: updatedPatch.approvalStatus,
-          payment_status: updatedPatch.paymentStatus,
+          billing_type: patch.billingType,
+          service_fee: patch.serviceFee,
+          assigned_to: patch.assignedTo,
+          deposit_covered: patch.depositCovered,
+          approval_status: patch.approvalStatus,
+          payment_status: patch.paymentStatus,
         })
         .eq("id", ticketId);
     }
-
-    setNoticeMessage(
-      isInside
-        ? `تم تحديد البلاغ ${ticketId} كـ «داخل العقد» ويُغطّى من وديعة الصيانة.`
-        : `تم تحديد البلاغ ${ticketId} كـ «خارج العقد» بقيمة ${feeNum.toLocaleString()} ج.م وإرساله للموافقة.`
-    );
   };
 
   const handleClientApproveTicket = async (ticketId) => {
     const target = tickets.find((t) => t.id === ticketId);
     if (!target) return;
-
-    const updatedPatch = {
+    const patch = {
       approvalStatus: "موافق عليه",
       paymentStatus: "بانتظار إتمام الإصلاح وإصدار المطالبة",
       status: "in_progress",
@@ -924,39 +854,32 @@ export default function App() {
           : "فني الصيانة (تم التوجيه بعد الموافقة)",
     };
 
-    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...updatedPatch } : t)));
-
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...patch } : t)));
     if (supabase) {
       await supabase
         .from("tickets")
         .update({
-          approval_status: updatedPatch.approvalStatus,
-          payment_status: updatedPatch.paymentStatus,
-          status: updatedPatch.status,
-          assigned_to: updatedPatch.assignedTo,
+          approval_status: patch.approvalStatus,
+          payment_status: patch.paymentStatus,
+          status: patch.status,
+          assigned_to: patch.assignedTo,
         })
         .eq("id", ticketId);
     }
-
-    setNoticeMessage(`تم تسجيل موافقة العميل على البلاغ ${ticketId} وتحويله إلى «قيد التنفيذ» لإرسال الفني.`);
   };
 
   const handleResolveAndIssueInvoice = async (ticketId) => {
     const ticket = tickets.find((t) => t.id === ticketId);
-    if (!ticket) return;
-
-    if (ticket.billingType === "غير محدد") {
+    if (!ticket || ticket.billingType === "غير محدد") {
       setNoticeMessage(`يجب أولاً تحديد هل البلاغ ${ticketId} داخل العقد أم خارجه.`);
       return;
     }
-
     if (ticket.billingType === "خارج العقد" && ticket.approvalStatus !== "موافق عليه") {
-      setNoticeMessage(`لا يمكن إغلاق البلاغ ${ticketId} أو إصدار مطالبته قبل موافقة العميل على المبلغ.`);
+      setNoticeMessage(`يلزم موافقة العميل قبل إغلاق البلاغ ${ticketId} أو إصدار مطالبته.`);
       return;
     }
 
     let issuedInvoiceId = ticket.invoiceId || null;
-
     if (ticket.billingType === "خارج العقد" && Number(ticket.serviceFee) > 0 && !ticket.invoiceIssued) {
       const matchedUnit = units.find((u) => u.id === ticket.unitId);
       const partyName =
@@ -966,7 +889,6 @@ export default function App() {
 
       issuedInvoiceId = `INV-MNT-${ticket.id}-${Math.floor(10 + Math.random() * 89)}`;
       const today = new Date().toISOString().split("T")[0];
-
       const newInv = {
         id: issuedInvoiceId,
         unitId: ticket.unitId,
@@ -977,11 +899,8 @@ export default function App() {
         status: "قيد الانتظار",
         paymentDate: "-",
       };
-
       setInvoices((prev) => [newInv, ...prev]);
-      if (supabase) {
-        await supabase.from("invoices").upsert(mapInvoiceToDb(newInv));
-      }
+      if (supabase) await supabase.from("invoices").upsert(mapInvoiceToDb(newInv));
     }
 
     const updatedTicket = {
@@ -993,7 +912,6 @@ export default function App() {
     };
 
     setTickets((prev) => prev.map((t) => (t.id === ticketId ? updatedTicket : t)));
-
     if (supabase) {
       await supabase
         .from("tickets")
@@ -1005,54 +923,35 @@ export default function App() {
         })
         .eq("id", ticketId);
     }
-
-    setNoticeMessage(
-      issuedInvoiceId
-        ? `تم تأكيد حل المشكلة في البلاغ ${ticketId} وإصدار مطالبة مديونية رقم ${issuedInvoiceId} بقيمة ${Number(ticket.serviceFee).toLocaleString()} ج.م (تُرحّل للخزينة عند التحصيل).`
-        : `تم تأكيد حل المشكلة وإغلاق البلاغ ${ticketId} (مغطى من وديعة الصيانة).`
-    );
   };
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
     if (!newAnnouncement.title.trim() || !newAnnouncement.content.trim()) return;
-
-    const announcementRecord = {
+    const record = {
       id: Date.now(),
       ...newAnnouncement,
       date: new Date().toISOString().split("T")[0],
     };
-
-    setAnnouncements((prev) => [announcementRecord, ...prev]);
-
-    if (supabase) {
-      const { error } = await supabase.from("announcements").insert(announcementRecord);
-      setNoticeMessage(
-        error
-          ? `تم الإرسال محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : "تم بث التنبيه وحفظه في قاعدة البيانات بنجاح."
-      );
-    }
-
+    setAnnouncements((prev) => [record, ...prev]);
+    if (supabase) await supabase.from("announcements").insert(record);
     setNewAnnouncement({ title: "", content: "", priority: "عادي", target: "جميع المستأجرين" });
     setShowAnnouncementModal(false);
   };
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    const { kind, id, label } = deleteTarget;
+    const { kind, id } = deleteTarget;
     setDeleteTarget(null);
 
-    if (kind === "unit") {
-      const unpaidInvoices = invoices.filter((inv) => inv.unitId === id && inv.status !== "مدفوع");
-      const openOrUnpaidTickets = tickets.filter(
-        (t) => t.unitId === id && (t.status !== "resolved" || (t.billingType === "خارج العقد" && !t.invoiceIssued))
-      );
-      if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
-        setNoticeMessage(`تم إيقاف حذف ${label} لوجود مطالبات غير محصلة أو بلاغات صيانة معلقة.`);
-        return;
-      }
-    }
+    const setters = {
+      unit: () => setUnits((prev) => prev.filter((item) => item.id !== id)),
+      invoice: () => setInvoices((prev) => prev.filter((item) => item.id !== id)),
+      ticket: () => setTickets((prev) => prev.filter((item) => item.id !== id)),
+      announcement: () => setAnnouncements((prev) => prev.filter((item) => item.id !== id)),
+      user: () => setUsers((prev) => prev.filter((item) => item.id !== id)),
+    };
+    setters[kind]?.();
 
     const tableMap = {
       unit: "units",
@@ -1061,52 +960,21 @@ export default function App() {
       announcement: "announcements",
       user: "portal_users",
     };
-
-    if (kind === "unit") setUnits((prev) => prev.filter((item) => item.id !== id));
-    if (kind === "invoice") {
-      setInvoices((prev) => prev.filter((item) => item.id !== id));
-      if (selectedInvoice?.id === id) {
-        setSelectedInvoice(null);
-        setShowInvoiceModal(false);
-      }
-    }
-    if (kind === "ticket") setTickets((prev) => prev.filter((item) => item.id !== id));
-    if (kind === "announcement") setAnnouncements((prev) => prev.filter((item) => item.id !== id));
-    if (kind === "user") setUsers((prev) => prev.filter((item) => item.id !== id));
-
-    const tableName = tableMap[kind];
-    if (supabase && tableName) {
-      const { error } = await supabase.from(tableName).delete().eq("id", id);
-      setNoticeMessage(
-        error
-          ? `تم الحذف من العرض لكن تعذر الحذف من قاعدة البيانات: ${error.message}`
-          : `تم حذف ${label} نهائياً من قاعدة البيانات.`
-      );
+    if (supabase && tableMap[kind]) {
+      await supabase.from(tableMap[kind]).delete().eq("id", id);
     }
   };
 
   const moveTicket = async (ticketId, newStatus) => {
-    const targetTicket = tickets.find((t) => t.id === ticketId);
-    if (!targetTicket) return;
-
-    if (newStatus === "resolved") {
-      await handleResolveAndIssueInvoice(ticketId);
+    const target = tickets.find((t) => t.id === ticketId);
+    if (!target) return;
+    if (newStatus === "resolved") return handleResolveAndIssueInvoice(ticketId);
+    if (newStatus === "in_progress" && target.billingType === "خارج العقد" && target.approvalStatus !== "موافق عليه") {
+      setNoticeMessage(`يرجى تسجيل موافقة العميل أولاً قبل توجيه الفني للبلاغ ${ticketId}.`);
       return;
     }
-
-    if (newStatus === "in_progress" && targetTicket.billingType === "خارج العقد" && targetTicket.approvalStatus !== "موافق عليه") {
-      setNoticeMessage(`يرجى تسجيل موافقة العميل أولاً قبل توجيه الفني لبدء تنفيذ البلاغ ${ticketId}.`);
-      return;
-    }
-
     setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t)));
-
-    if (supabase) {
-      const { error } = await supabase.from("tickets").update({ status: newStatus }).eq("id", ticketId);
-      if (error) {
-        setNoticeMessage(`تعذر تحديث حالة التذكرة في قاعدة البيانات: ${error.message}`);
-      }
-    }
+    if (supabase) await supabase.from("tickets").update({ status: newStatus }).eq("id", ticketId);
   };
 
   const filteredUnits = useMemo(() => {
@@ -1130,22 +998,21 @@ export default function App() {
     const q = searchQuery.trim().toLowerCase();
     return invoices.filter((i) => {
       const matchesSearch = !q || i.tenant.toLowerCase().includes(q) || i.id.toLowerCase().includes(q) || i.unitId.toLowerCase().includes(q);
-      if (invoiceFilter === "الكل") return matchesSearch;
-      return matchesSearch && i.status === invoiceFilter;
+      return invoiceFilter === "الكل" ? matchesSearch : matchesSearch && i.status === invoiceFilter;
     });
   }, [invoices, searchQuery, invoiceFilter]);
 
-  const unitFilterOptions = useMemo(() => {
-    const dynamicFloorNames = mallConfig.floors.map((f) => f.name);
-    return ["الكل", "ملاك", "مستأجرون", "مؤجرة للغير", ...dynamicFloorNames, "تنبيهات"];
-  }, [mallConfig]);
+  const unitFilterOptions = useMemo(
+    () => ["الكل", "ملاك", "مستأجرون", "مؤجرة للغير", ...mallConfig.floors.map((f) => f.name), "تنبيهات"],
+    [mallConfig]
+  );
 
   if (!currentUser) {
     const chosenUser = users.find((u) => u.id === selectedUserId) || users[0];
     return (
       <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 flex items-center justify-center p-4 font-sans">
         <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl">
-          <div className="flex flex-col items-center border-b border-slate-800 pb-4 gap-3 relative">
+          <div className="flex flex-col items-center border-b border-slate-800 pb-4 gap-3">
             <BrandLogoBlock compact />
             <Link href="/portal" className="text-xs text-[#00D8F6] hover:underline inline-flex items-center gap-1">
               بوابة الوحدة <ExternalLink className="w-3 h-3" />
@@ -1224,7 +1091,6 @@ export default function App() {
         <div>
           <div className="p-5 border-b border-slate-800/80 bg-gradient-to-r from-[#0B192C] to-[#1E3E62]/30">
             <BrandLogoBlock />
-
             <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
               <span className="flex items-center gap-1.5 text-slate-300 font-semibold">
                 <Building2 className="w-3.5 h-3.5 text-[#00D8F6]" />
@@ -1232,8 +1098,8 @@ export default function App() {
               </span>
               <span
                 className={`w-2.5 h-2.5 rounded-full ${dbConnected ? "bg-emerald-400" : "bg-amber-400"}`}
-                title={dbConnected ? "متصل بقاعدة بيانات Supabase" : "وضع محلي / بانتظار الربط"}
-              ></span>
+                title={dbConnected ? "متصل بقاعدة بيانات Supabase" : "وضع محلي"}
+              />
             </div>
           </div>
 
@@ -1314,12 +1180,7 @@ export default function App() {
                 className="w-full bg-[#070F1B] border border-slate-700/80 rounded-xl pr-10 pl-8 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#00D8F6]"
               />
               {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  title="مسح البحث"
-                >
+                <button type="button" onClick={() => setSearchQuery("")} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
@@ -1332,24 +1193,11 @@ export default function App() {
                 <Plus className="w-4 h-4" /> وحدة جديدة
               </button>
             )}
-
             {perms.canManageAnnouncements && (
               <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition">
                 <Send className="w-3.5 h-3.5 text-[#00D8F6]" /> إرسال تنبيه
               </button>
             )}
-
-            <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
-
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white border border-white/10">
-                {currentUser.name.slice(0, 2)}
-              </div>
-              <div className="hidden lg:block text-xs">
-                <p className="font-semibold text-slate-200">{currentUser.name}</p>
-                <p className="text-[10px] text-[#00D8F6]">{currentUser.badge}</p>
-              </div>
-            </div>
           </div>
         </header>
 
@@ -1363,23 +1211,19 @@ export default function App() {
         <div className="p-4 sm:p-6 lg:p-8 flex-1 space-y-6">
           {activeTab === "overview" && (
             <div className="space-y-6">
-              <div className="relative bg-gradient-to-r from-[#1E3E62] via-[#0B192C] to-[#070F1B] rounded-2xl p-6 border border-slate-700/60 overflow-hidden shadow-xl">
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="bg-gradient-to-r from-[#1E3E62] via-[#0B192C] to-[#070F1B] rounded-2xl p-6 border border-slate-700/60 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00D8F6] bg-[#00D8F6]/10 px-2.5 py-0.5 rounded-full border border-[#00D8F6]/20 mb-2">
+                    <Sparkles className="w-3 h-3" /> MMS • Mall Management System
+                  </span>
+                  <h2 className="text-2xl font-black text-white">لوحة تحكم {mallConfig.mallName}</h2>
+                  <p className="text-slate-300 text-xs mt-1">متابعة لحظية للوحدات والتحصيل والصيانة عبر نظام MMS.</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs bg-[#070F1B]/70 p-3 rounded-xl border border-slate-700/50">
+                  <Calendar className="w-4 h-4 text-[#00D8F6]" />
                   <div>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00D8F6] bg-[#00D8F6]/10 px-2.5 py-0.5 rounded-full border border-[#00D8F6]/20 mb-2">
-                      <Sparkles className="w-3 h-3" /> MMS • Mall Management System
-                    </span>
-                    <h2 className="text-2xl font-black text-white">لوحة تحكم {mallConfig.mallName}</h2>
-                    <p className="text-slate-300 text-xs mt-1 max-w-xl">
-                      متابعة لحظية للأداء المالي، نسبة الإشغال، تذاكر الصيانة، الملاك والمستأجرين عبر نظام MMS.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs bg-[#070F1B]/70 p-3 rounded-xl border border-slate-700/50">
-                    <Calendar className="w-4 h-4 text-[#00D8F6]" />
-                    <div>
-                      <p className="text-slate-400 text-[10px]">تاريخ التشغيل</p>
-                      <p className="font-bold text-slate-200">نوفمبر 2026</p>
-                    </div>
+                    <p className="text-slate-400 text-[10px]">تاريخ التشغيل</p>
+                    <p className="font-bold text-slate-200">نوفمبر 2026</p>
                   </div>
                 </div>
               </div>
@@ -1397,9 +1241,9 @@ export default function App() {
                   <KpiCard
                     title="المحصّل في الخزينة"
                     value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
-                    subtext={`من إجمالي مطالبات وفواتير ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
+                    subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
                     icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
-                    badge={`مطالبات قائمة ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
+                    badge={`قائمة ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
                     badgeType="warning"
                   />
                 ) : (
@@ -1421,77 +1265,13 @@ export default function App() {
                   badgeType="neutral"
                 />
                 <KpiCard
-                  title="عقود تنتهي قريباً (30 يوم)"
+                  title="عقود تنتهي قريباً"
                   value={`${dynamicKpis.expiringLeasesCount} عقود`}
-                  subtext="تتطلب متابعة وإعادة التجديد"
+                  subtext="تتطلب متابعة التجديد"
                   icon={<AlertTriangle className="w-6 h-6 text-rose-400" />}
                   badge="إجراء مطلوب"
                   badgeType="danger"
                 />
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div>
-                      <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-                        <TrendingUp className="w-4 h-4 text-[#00D8F6]" />
-                        تحليل التدفق النقدي والتحصيل الشهري
-                      </h3>
-                      <p className="text-[11px] text-slate-400">مقارنة التحصيل الشهري خلال 6 أشهر</p>
-                    </div>
-                    <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700">بالجنيه المصري</span>
-                  </div>
-
-                  <div className="grid grid-cols-6 gap-2 sm:gap-3 pt-4 px-1 items-end h-52">
-                    {[
-                      { month: "يونيو", amount: 410 },
-                      { month: "يوليو", amount: 430 },
-                      { month: "أغسطس", amount: 460 },
-                      { month: "سبتمبر", amount: 440 },
-                      { month: "أكتوبر", amount: 490 },
-                      { month: "نوفمبر", amount: Math.round(dynamicKpis.totalCollected / 1000) },
-                    ].map((item) => (
-                      <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end">
-                        <span className="text-[10px] text-slate-300 font-bold">{item.amount}k</span>
-                        <div className="w-full max-w-[38px] bg-slate-800/90 rounded-t-lg h-36 flex items-end overflow-hidden">
-                          <div className="w-full bg-gradient-to-t from-blue-700 to-[#00D8F6] rounded-t-lg" style={{ height: `${Math.min(100, Math.max(15, (item.amount / 550) * 100))}%` }}></div>
-                        </div>
-                        <span className="text-[11px] text-slate-400 font-medium">{item.month}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
-                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
-                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                        <Wrench className="w-3.5 h-3.5 text-amber-400" /> آخر طلبات الصيانة
-                      </h4>
-                      <button type="button" onClick={() => handleSelectTab("maintenance")} className="text-[10px] text-[#00D8F6] hover:underline">عرض الكل</button>
-                    </div>
-                    <div className="space-y-2.5">
-                      {tickets.length === 0 ? (
-                        <p className="text-slate-500 text-[11px] text-center py-4">لا يوجد بلاغات صيانة حالياً</p>
-                      ) : (
-                        tickets.slice(0, 3).map((ticket) => (
-                          <div key={ticket.id} className="bg-[#070F1B] p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
-                            <div>
-                              <p className="text-xs font-semibold text-slate-200">{ticket.title}</p>
-                              <p className="text-[10px] text-slate-400 mt-0.5">
-                                الوحدة: {ticket.unitId} • {ticket.billingType}
-                              </p>
-                            </div>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-slate-800 text-slate-300 border-slate-700"}`}>
-                              {ticket.priority}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -1503,7 +1283,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-[#00D8F6]" /> دليل الوحدات والملاك والعقود
                   </h2>
-                  <p className="text-xs text-slate-400">حماية المستحقات من الحذف، وحفظ السجل التاريخي للعقود والتأجير ووديعة الصيانة</p>
+                  <p className="text-xs text-slate-400">إدارة الوحدات والملاك والمستأجرين ووديعة الصيانة والسجل التاريخي</p>
                 </div>
                 {perms.canManageUnits && (
                   <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -1515,7 +1295,7 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-2">
                 {unitFilterOptions.map((filter) => (
                   <button key={filter} type="button" onClick={() => setUnitFilter(filter)} className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition ${unitFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold border-[#00D8F6]" : "bg-[#0B192C] text-slate-300 border-slate-800 hover:border-slate-700"}`}>
-                    {filter === "تنبيهات" ? "تنبيهات التجديد" : filter}
+                    {filter}
                   </button>
                 ))}
               </div>
@@ -1528,7 +1308,7 @@ export default function App() {
                         <th className="p-4">رقم الوحدة</th>
                         <th className="p-4">المالك / المستأجر</th>
                         <th className="p-4">الصفة</th>
-                        <th className="p-4">تفاصيل الإيجار / التأجير / الوديعة</th>
+                        <th className="p-4">التفاصيل المالية والوديعة</th>
                         <th className="p-4">نهاية العقد</th>
                         <th className="p-4">الحالة</th>
                         <th className="p-4 text-center">إجراء</th>
@@ -1537,7 +1317,7 @@ export default function App() {
                     <tbody className="divide-y divide-slate-800/60 text-slate-200">
                       {filteredUnits.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="p-8 text-center text-slate-500">لا توجد وحدات مضافة بعد. اضغط على "إضافة وحدة جديدة" للبدء.</td>
+                          <td colSpan="7" className="p-8 text-center text-slate-500">لا توجد وحدات مضافة بعد.</td>
                         </tr>
                       ) : (
                         filteredUnits.map((unit) => {
@@ -1569,7 +1349,7 @@ export default function App() {
                                   unit.isSubleased ? (
                                     <>
                                       <p className="text-emerald-400 font-semibold">مؤجر للغير: {unit.subtenantName || "مستأجر فرعي"}</p>
-                                      <p className="text-[10px] text-slate-400">قيمة إيجار التأجير: {Number(unit.subleaseRent || 0).toLocaleString()} ج.م</p>
+                                      <p className="text-[10px] text-slate-400">إيجار التأجير: {Number(unit.subleaseRent || 0).toLocaleString()} ج.م</p>
                                     </>
                                   ) : (
                                     <span className="text-slate-400">بدون عقد إيجار (ملك خاص)</span>
@@ -1583,7 +1363,7 @@ export default function App() {
                                 {isOwner ? (unit.isSubleased ? unit.subleaseExpireDate || "-" : "لا يوجد عقد إيجار") : unit.expireDate || "-"}
                               </td>
                               <td className="p-4">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${unit.status.includes("نشط") || unit.status.includes("مالك") || unit.status.includes("مؤجرة") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : unit.status.includes("تنبيه") ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30"}`}>
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold border bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
                                   {unit.status}
                                 </span>
                               </td>
@@ -1628,11 +1408,11 @@ export default function App() {
                   <p className="text-xl font-black text-white mt-1">{dynamicKpis.totalBilled.toLocaleString()} ج.م</p>
                 </div>
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
-                  <p className="text-xs text-slate-400">المحصّل في الخزينة (فواتير مسددة)</p>
+                  <p className="text-xs text-slate-400">المحصّل في الخزينة</p>
                   <p className="text-xl font-black text-emerald-400 mt-1">{dynamicKpis.totalCollected.toLocaleString()} ج.م</p>
                 </div>
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
-                  <p className="text-xs text-slate-400">مطالبات / مديونيات خارجية لم تُحصّل</p>
+                  <p className="text-xs text-slate-400">مطالبات لم تُحصّل بعد</p>
                   <p className="text-xl font-black text-amber-400 mt-1">{dynamicKpis.totalPending.toLocaleString()} ج.م</p>
                 </div>
               </div>
@@ -1650,18 +1430,16 @@ export default function App() {
                     )}
                     {[
                       { key: "الكل", label: "الكل" },
-                      { key: "قيد الانتظار", label: "مطالبة (مديونية)" },
-                      { key: "متأخر", label: "مطالبة متأخرة" },
-                      { key: "مدفوع", label: "محصّل (في الخزينة)" },
+                      { key: "قيد الانتظار", label: "مطالبة" },
+                      { key: "متأخر", label: "متأخرة" },
+                      { key: "مدفوع", label: "محصّل" },
                     ].map((filter) => (
                       <button
                         key={filter.key}
                         type="button"
                         onClick={() => setInvoiceFilter(filter.key)}
                         className={`px-2.5 py-1 rounded-lg text-xs transition ${
-                          invoiceFilter === filter.key
-                            ? "bg-[#00D8F6] text-slate-950 font-bold"
-                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                          invoiceFilter === filter.key ? "bg-[#00D8F6] text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                         }`}
                       >
                         {filter.label}
@@ -1678,9 +1456,9 @@ export default function App() {
                         <th className="p-3">الوحدة والطرف</th>
                         <th className="p-3">البيان</th>
                         <th className="p-3">المبلغ</th>
-                        <th className="p-3">تاريخ الاستحقاق</th>
+                        <th className="p-3">الاستحقاق</th>
                         <th className="p-3">الحالة</th>
-                        <th className="p-3 text-center">التحصيل والطباعة</th>
+                        <th className="p-3 text-center">إجراء</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -1699,16 +1477,8 @@ export default function App() {
                               <td className="p-3 font-bold text-white">{inv.amount.toLocaleString()} ج.م</td>
                               <td className="p-3 text-slate-400">{inv.dueDate}</td>
                               <td className="p-3">
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                                    isPaid
-                                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                                      : inv.status === "متأخر"
-                                        ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
-                                        : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                                  }`}
-                                >
-                                  {isPaid ? "محصّل (فاتورة)" : inv.status === "متأخر" ? "مطالبة متأخرة" : "مطالبة (مديونية)"}
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
+                                  {isPaid ? "محصّل" : inv.status}
                                 </span>
                               </td>
                               <td className="p-3 text-center flex items-center justify-center gap-2">
@@ -1718,12 +1488,12 @@ export default function App() {
                                   </button>
                                 )}
                                 <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
-                                  <Printer className="w-3 h-3" /> {isPaid ? "الإيصال" : "بيان مطالبة"}
+                                  <Printer className="w-3 h-3" /> {isPaid ? "الإيصال" : "المطالبة"}
                                 </button>
                                 {perms.canDelete && (
                                   <button
                                     type="button"
-                                    onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `${isPaid ? "الفاتورة" : "المطالبة"} ${inv.id}` })}
+                                    onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `السجل ${inv.id}` })}
                                     className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
                                   >
                                     <Trash2 className="w-3 h-3" /> حذف
@@ -1748,9 +1518,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-amber-400" /> مركز الصيانة والخدمات الفنية
                   </h2>
-                  <p className="text-xs text-slate-400">
-                    مسؤول الصيانة يحدد داخل العقد (وديعة الصيانة) أو خارج العقد (تسعير → موافقة → تنفيذ → تأكيد الحل → إصدار مطالبة لحين التحصيل)
-                  </p>
+                  <p className="text-xs text-slate-400">تحديد التبعية التعاقدية والموافقة والحل وإصدار المطالبة عند الحاجة</p>
                 </div>
                 {perms.canManageTickets && (
                   <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -1760,7 +1528,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <KanbanColumn title="بلاغات جديدة / بانتظار التقييم أو الموافقة" count={tickets.filter((t) => t.status === "new").length} color="border-rose-500/50 bg-rose-500/5">
+                <KanbanColumn title="بلاغات جديدة / بانتظار التقييم" count={tickets.filter((t) => t.status === "new").length} color="border-rose-500/50 bg-rose-500/5">
                   {tickets.filter((t) => t.status === "new").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -1771,12 +1539,12 @@ export default function App() {
                       onEvaluate={(payload) => handleEvaluateTicket(ticket.id, payload)}
                       onApproveClient={() => handleClientApproveTicket(ticket.id)}
                       onResolveAndInvoice={() => handleResolveAndIssueInvoice(ticket.id)}
-                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
+                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `البلاغ ${ticket.id}` })}
                     />
                   ))}
                 </KanbanColumn>
 
-                <KanbanColumn title="قيد التنفيذ (إرسال الفني وإتمام الإصلاح)" count={tickets.filter((t) => t.status === "in_progress").length} color="border-amber-500/50 bg-amber-500/5">
+                <KanbanColumn title="قيد التنفيذ" count={tickets.filter((t) => t.status === "in_progress").length} color="border-amber-500/50 bg-amber-500/5">
                   {tickets.filter((t) => t.status === "in_progress").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -1787,12 +1555,12 @@ export default function App() {
                       onEvaluate={(payload) => handleEvaluateTicket(ticket.id, payload)}
                       onApproveClient={() => handleClientApproveTicket(ticket.id)}
                       onResolveAndInvoice={() => handleResolveAndIssueInvoice(ticket.id)}
-                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
+                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `البلاغ ${ticket.id}` })}
                     />
                   ))}
                 </KanbanColumn>
 
-                <KanbanColumn title="تم الحل وإصدار المطالبة" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
+                <KanbanColumn title="تم الحل" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
                   {tickets.filter((t) => t.status === "resolved").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -1803,7 +1571,7 @@ export default function App() {
                       onEvaluate={(payload) => handleEvaluateTicket(ticket.id, payload)}
                       onApproveClient={() => handleClientApproveTicket(ticket.id)}
                       onResolveAndInvoice={() => handleResolveAndIssueInvoice(ticket.id)}
-                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
+                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `البلاغ ${ticket.id}` })}
                     />
                   ))}
                 </KanbanColumn>
@@ -1816,9 +1584,9 @@ export default function App() {
               <div className="flex items-center justify-between bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
                 <div>
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <BellRing className="w-5 h-5 text-[#00D8F6]" /> سجل التنبيهات والتواصل الداخلي
+                    <BellRing className="w-5 h-5 text-[#00D8F6]" /> سجل التنبيهات والإعلانات
                   </h2>
-                  <p className="text-xs text-slate-400">بث الإشعارات والتعليمات للملاك والمستأجرين</p>
+                  <p className="text-xs text-slate-400">بث الإشعارات للملاك والمستأجرين</p>
                 </div>
                 {perms.canManageAnnouncements && (
                   <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
@@ -1870,7 +1638,6 @@ export default function App() {
                   <h2 className="text-base font-bold text-white flex items-center gap-2">
                     <Users className="w-4 h-4 text-[#00D8F6]" /> إنشاء مستخدم وتحديد صلاحياته
                   </h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">حدد بيانات المستخدم والصلاحيات المسموحة له قبل الحفظ</p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1881,7 +1648,6 @@ export default function App() {
                       type="text"
                       value={newUserForm.name}
                       onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-                      placeholder="مثال: م. سارة أحمد"
                       className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
                     />
                   </div>
@@ -1892,7 +1658,6 @@ export default function App() {
                       type="text"
                       value={newUserForm.password}
                       onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                      placeholder="مثال: 5566"
                       className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
                     />
                   </div>
@@ -1900,22 +1665,20 @@ export default function App() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">المسمى الوظيفي / الدور</label>
+                    <label className="block text-slate-400 mb-1 font-semibold">المسمى الوظيفي</label>
                     <input
                       type="text"
                       value={newUserForm.roleTitle}
                       onChange={(e) => setNewUserForm({ ...newUserForm, roleTitle: e.target.value })}
-                      placeholder="مشرف تشغيل"
                       className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">شارة الصلاحية</label>
+                    <label className="block text-slate-400 mb-1 font-semibold">الشارة</label>
                     <input
                       type="text"
                       value={newUserForm.badge}
                       onChange={(e) => setNewUserForm({ ...newUserForm, badge: e.target.value })}
-                      placeholder="Operations"
                       className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
                     />
                   </div>
@@ -1932,10 +1695,7 @@ export default function App() {
                           onChange={(e) =>
                             setNewUserForm({
                               ...newUserForm,
-                              permissions: {
-                                ...newUserForm.permissions,
-                                [item.key]: e.target.checked,
-                              },
+                              permissions: { ...newUserForm.permissions, [item.key]: e.target.checked },
                             })
                           }
                           className="rounded border-slate-600"
@@ -1946,10 +1706,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5"
-                >
+                <button type="submit" className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5">
                   <Plus className="w-4 h-4" /> حفظ المستخدم بالصلاحيات
                 </button>
               </form>
@@ -1957,9 +1714,7 @@ export default function App() {
               <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-3">
                 <div className="border-b border-slate-800 pb-3">
                   <h2 className="text-base font-bold text-white">المستخدمون الحاليون وتعديل صلاحياتهم</h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">يمكن تبديل أي صلاحية فوراً لأي مستخدم</p>
                 </div>
-
                 <div className="space-y-3">
                   {users.map((u) => (
                     <div key={u.id} className="bg-[#070F1B] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
@@ -1980,7 +1735,6 @@ export default function App() {
                           </button>
                         )}
                       </div>
-
                       <div className="flex flex-wrap gap-1.5 pt-1">
                         {ALL_PERMISSION_KEYS.map((p) => {
                           const active = Boolean(u.permissions[p.key]);
@@ -1990,13 +1744,10 @@ export default function App() {
                               type="button"
                               onClick={() => handleToggleUserPermission(u.id, p.key)}
                               className={`px-2 py-1 rounded text-[10px] font-semibold border transition ${
-                                active
-                                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                                  : "bg-slate-800/70 text-slate-500 border-slate-700"
+                                active ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" : "bg-slate-800/70 text-slate-500 border-slate-700"
                               }`}
                             >
-                              {active ? "✓ " : "✕ "}
-                              {p.label}
+                              {active ? "✓ " : "✕ "}{p.label}
                             </button>
                           );
                         })}
@@ -2013,9 +1764,9 @@ export default function App() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Settings className="w-5 h-5 text-[#00D8F6]" /> إعدادات المول والأدوار والوحدات
+                    <Settings className="w-5 h-5 text-[#00D8F6]" /> إعدادات المول وأكواد وأسماء الأدوار
                   </h2>
-                  <p className="text-xs text-slate-400">اضبط اسم المول، أدوار المول، وعدد الوحدات وتصنيف كل دور ليتناسب مع أي مول</p>
+                  <p className="text-xs text-slate-400">عدّل كود واسم وعدد وحدات أي دور بسهولة</p>
                 </div>
                 <button type="submit" className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5">
                   <Save className="w-4 h-4" /> حفظ الإعدادات
@@ -2042,16 +1793,30 @@ export default function App() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-200">أدوار المول وعدد الوحدات وتصنيف كل دور</h3>
+                  <h3 className="font-bold text-slate-200">أدوار المول وكود كل دور</h3>
                   <button type="button" onClick={handleAddFloorRow} className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg font-semibold border border-slate-700 inline-flex items-center gap-1">
                     <Plus className="w-3.5 h-3.5 text-[#00D8F6]" /> إضافة دور
                   </button>
                 </div>
 
                 {draftConfig.floors.map((floor, idx) => (
-                  <div key={floor.id} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
+                  <div key={floor.id} className="grid grid-cols-1 sm:grid-cols-5 gap-3 bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
                     <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">اسم / رقم الدور</label>
+                      <label className="block text-slate-400 mb-1 text-[10px]">كود الدور</label>
+                      <input
+                        type="text"
+                        value={floor.code || ""}
+                        onChange={(e) => {
+                          const next = [...draftConfig.floors];
+                          next[idx] = { ...next[idx], code: e.target.value };
+                          setDraftConfig({ ...draftConfig, floors: next });
+                        }}
+                        placeholder="G / DX / F1"
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-[#00D8F6] font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">اسم الدور</label>
                       <input
                         type="text"
                         value={floor.name}
@@ -2064,7 +1829,7 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">نوع النشاط في الدور</label>
+                      <label className="block text-slate-400 mb-1 text-[10px]">نوع النشاط</label>
                       <select
                         value={floor.category}
                         onChange={(e) => {
@@ -2081,7 +1846,7 @@ export default function App() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">عدد الوحدات في الدور</label>
+                      <label className="block text-slate-400 mb-1 text-[10px]">عدد الوحدات</label>
                       <input
                         type="number"
                         min="0"
@@ -2095,7 +1860,7 @@ export default function App() {
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">ملاحظات الدور</label>
+                      <label className="block text-slate-400 mb-1 text-[10px]">ملاحظات</label>
                       <input
                         type="text"
                         value={floor.notes || ""}
@@ -2104,7 +1869,6 @@ export default function App() {
                           next[idx] = { ...next[idx], notes: e.target.value };
                           setDraftConfig({ ...draftConfig, floors: next });
                         }}
-                        placeholder="مثال: دوبليكس مرتبط بالأرضي"
                         className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
                       />
                     </div>
@@ -2119,341 +1883,100 @@ export default function App() {
       {deleteTarget && (
         <Modal title="تأكيد الحذف" onClose={() => setDeleteTarget(null)}>
           <div className="space-y-4 text-xs">
-            <p className="text-slate-200 leading-relaxed">
-              هل أنت متأكد من حذف <strong className="text-rose-400">{deleteTarget.label}</strong>؟ لا يمكن التراجع عن هذا الإجراء بعد التنفيذ.
+            <p className="text-slate-200">
+              هل أنت متأكد من حذف <strong className="text-rose-400">{deleteTarget.label}</strong>؟
             </p>
             <div className="pt-2 flex items-center justify-end gap-2">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">
-                إلغاء
-              </button>
-              <button type="button" onClick={confirmDelete} className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-5 py-2 rounded-xl transition">
-                تأكيد الحذف
-              </button>
+              <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
+              <button type="button" onClick={confirmDelete} className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-5 py-2 rounded-xl">تأكيد الحذف</button>
             </div>
           </div>
         </Modal>
       )}
 
-      {editUnitForm && (
-        <Modal
-          title={`تعديل بيانات الوحدة (${editingUnitOriginalId})`}
-          onClose={() => {
-            setEditingUnitOriginalId(null);
-            setEditUnitForm(null);
-          }}
-        >
-          <form onSubmit={handleSaveEditedUnit} className="space-y-4 text-xs max-h-[75vh] overflow-y-auto pl-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة</label>
-                <input
-                  required
-                  type="text"
-                  value={editUnitForm.id}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, id: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الصفة (مالك / مستأجر)</label>
-                <select
-                  value={editUnitForm.ownershipType}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, ownershipType: e.target.value, isSubleased: false })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                >
-                  <option value="مستأجر">مستأجر</option>
-                  <option value="مالك">مالك (بدون عقد إيجار)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">
-                  {editUnitForm.ownershipType === "مالك" ? "اسم المالك" : "اسم المستأجر / النشاط"}
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={editUnitForm.tenant}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, tenant: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">رقم التواصل</label>
-                <input
-                  type="text"
-                  value={editUnitForm.phone}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, phone: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
-                <input
-                  required
-                  type="text"
-                  value={editUnitForm.portalPassword}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, portalPassword: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">رصيد وديعة الصيانة (ج.م)</label>
-                <input
-                  type="number"
-                  value={editUnitForm.maintenanceDeposit}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, maintenanceDeposit: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">القطاع</label>
-                <select
-                  value={editUnitForm.type}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, type: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                >
-                  <option value="تجاري">تجاري</option>
-                  <option value="إداري">إداري</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
-                <select
-                  value={editUnitForm.floor}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, floor: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                >
-                  {mallConfig.floors.map((f) => (
-                    <option key={f.id} value={f.name}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">المساحة</label>
-                <input
-                  type="text"
-                  value={editUnitForm.area}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, area: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-            </div>
-
-            {editUnitForm.ownershipType === "مستأجر" ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">الإيجار الشهري (ج.م)</label>
-                  <input
-                    type="number"
-                    value={editUnitForm.rent}
-                    onChange={(e) => setEditUnitForm({ ...editUnitForm, rent: e.target.value })}
-                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">تاريخ نهاية العقد</label>
-                  <input
-                    type="date"
-                    value={editUnitForm.expireDate}
-                    onChange={(e) => setEditUnitForm({ ...editUnitForm, expireDate: e.target.value })}
-                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 space-y-3">
-                <label className="flex items-center gap-2 text-slate-200 font-semibold cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editUnitForm.isSubleased}
-                    onChange={(e) => setEditUnitForm({ ...editUnitForm, isSubleased: e.target.checked })}
-                    className="rounded border-slate-600"
-                  />
-                  <span>المالك يقوم بتأجير الوحدة للغير</span>
-                </label>
-
-                {editUnitForm.isSubleased && (
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">المستأجر من المالك</label>
-                      <input
-                        type="text"
-                        value={editUnitForm.subtenantName}
-                        onChange={(e) => setEditUnitForm({ ...editUnitForm, subtenantName: e.target.value })}
-                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">قيمة الإيجار (ج.م)</label>
-                      <input
-                        type="number"
-                        value={editUnitForm.subleaseRent}
-                        onChange={(e) => setEditUnitForm({ ...editUnitForm, subleaseRent: e.target.value })}
-                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">نهاية التأجير</label>
-                      <input
-                        type="date"
-                        value={editUnitForm.subleaseExpireDate}
-                        onChange={(e) => setEditUnitForm({ ...editUnitForm, subleaseExpireDate: e.target.value })}
-                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 space-y-2.5">
-              <label className="flex items-center gap-2 text-[#00D8F6] font-semibold cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={Boolean(editUnitForm.archiveCurrentContract)}
-                  onChange={(e) => setEditUnitForm({ ...editUnitForm, archiveCurrentContract: e.target.checked })}
-                  className="rounded border-slate-600"
-                />
-                <Archive className="w-3.5 h-3.5" />
-                <span>أرشفة العقد / التشغيل الحالي في السجل التاريخي قبل إضافة طرف جديد</span>
-              </label>
-
-              {editUnitForm.archiveCurrentContract && (
-                <div>
-                  <label className="block text-slate-400 mb-1 text-[10px]">سبب إنهاء / أرشفة العقد السابق</label>
-                  <input
-                    type="text"
-                    value={editUnitForm.archiveReason || ""}
-                    onChange={(e) => setEditUnitForm({ ...editUnitForm, archiveReason: e.target.value })}
-                    placeholder="انتهاء مدة الإيجار أو تغيير المستأجر من الباطن"
-                    className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
-                  />
-                </div>
-              )}
-
-              {Array.isArray(editUnitForm.contractHistory) && editUnitForm.contractHistory.length > 0 && (
-                <div className="pt-2 border-t border-slate-800 space-y-1.5">
-                  <p className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
-                    <History className="w-3 h-3 text-[#00D8F6]" /> السجل التاريخي للعقود والمشغلين السابقين:
-                  </p>
-                  {editUnitForm.contractHistory.map((h) => (
-                    <div key={h.id} className="bg-[#0B192C] border border-slate-800/80 rounded-lg p-2 text-[10px] flex items-center justify-between gap-2">
-                      <div>
-                        <p className="font-bold text-slate-200">{h.partyName} ({h.ownershipType})</p>
-                        <p className="text-slate-400">{h.reason} • أُرشف في: {h.archivedAt}</p>
-                      </div>
-                      <span className="text-emerald-400 font-bold shrink-0">{Number(h.amount || 0).toLocaleString()} ج.م</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="pt-2 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingUnitOriginalId(null);
-                  setEditUnitForm(null);
-                }}
-                className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800"
-              >
-                إلغاء
-              </button>
-              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">
-                حفظ التعديلات
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
       {showAddUnitModal && (
-        <Modal title="إضافة وحدة (مالك أو مستأجر)" onClose={() => setShowAddUnitModal(false)}>
+        <Modal title="إضافة وحدة جديدة" onClose={() => setShowAddUnitModal(false)}>
           <form onSubmit={handleAddUnit} className="space-y-4 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة</label>
-                <input required type="text" value={newUnit.id} onChange={(e) => setNewUnit({ ...newUnit, id: e.target.value })} placeholder="G-15" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+                <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
+                <select
+                  value={newUnit.floor}
+                  onChange={(e) => handleFloorSelectionInAddUnit(e.target.value)}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                >
+                  {mallConfig.floors.map((f) => (
+                    <option key={f.id} value={f.name}>
+                      {f.name} ({f.code})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الصفة (مالك / مستأجر)</label>
+                <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة (كود الدور + الرقم)</label>
+                <input
+                  required
+                  type="text"
+                  value={newUnit.id}
+                  onChange={(e) => setNewUnit({ ...newUnit, id: e.target.value })}
+                  placeholder="مثال: G-01 أو DX-02"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الصفة</label>
                 <select
                   value={newUnit.ownershipType}
                   onChange={(e) => setNewUnit({ ...newUnit, ownershipType: e.target.value, isSubleased: false })}
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
                 >
                   <option value="مستأجر">مستأجر</option>
                   <option value="مالك">مالك (بدون عقد إيجار)</option>
                 </select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">
                   {newUnit.ownershipType === "مالك" ? "اسم المالك" : "اسم المستأجر / النشاط"}
                 </label>
-                <input required type="text" value={newUnit.tenant} onChange={(e) => setNewUnit({ ...newUnit, tenant: e.target.value })} placeholder={newUnit.ownershipType === "مالك" ? "أ. كريم حسن" : "متجر الأناقة"} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">رقم التواصل</label>
-                <input type="text" value={newUnit.phone} onChange={(e) => setNewUnit({ ...newUnit, phone: e.target.value })} placeholder="010..." className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
                 <input
                   required
                   type="text"
-                  value={newUnit.portalPassword}
-                  onChange={(e) => setNewUnit({ ...newUnit, portalPassword: e.target.value })}
-                  placeholder="مثال: Unit@2026"
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">وديعة الصيانة (ج.م)</label>
-                <input
-                  type="number"
-                  value={newUnit.maintenanceDeposit}
-                  onChange={(e) => setNewUnit({ ...newUnit, maintenanceDeposit: e.target.value })}
-                  placeholder="10000"
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                  value={newUnit.tenant}
+                  onChange={(e) => setNewUnit({ ...newUnit, tenant: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
               <div>
+                <label className="block text-slate-400 mb-1 font-semibold">رقم التواصل</label>
+                <input type="text" value={newUnit.phone} onChange={(e) => setNewUnit({ ...newUnit, phone: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">باسورد البوابة</label>
+                <input required type="text" value={newUnit.portalPassword} onChange={(e) => setNewUnit({ ...newUnit, portalPassword: e.target.value })} placeholder="1234" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">وديعة الصيانة</label>
+                <input type="number" value={newUnit.maintenanceDeposit} onChange={(e) => setNewUnit({ ...newUnit, maintenanceDeposit: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
                 <label className="block text-slate-400 mb-1 font-semibold">القطاع</label>
-                <select value={newUnit.type} onChange={(e) => setNewUnit({ ...newUnit, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                <select value={newUnit.type} onChange={(e) => setNewUnit({ ...newUnit, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
                   <option value="تجاري">تجاري</option>
                   <option value="إداري">إداري</option>
                 </select>
               </div>
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
-                <select value={newUnit.floor} onChange={(e) => setNewUnit({ ...newUnit, floor: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  {mallConfig.floors.map((f) => (
-                    <option key={f.id} value={f.name}>{f.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="block text-slate-400 mb-1 font-semibold">المساحة</label>
-                <input type="text" value={newUnit.area} onChange={(e) => setNewUnit({ ...newUnit, area: e.target.value })} placeholder="100 م²" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+                <input type="text" value={newUnit.area} onChange={(e) => setNewUnit({ ...newUnit, area: e.target.value })} placeholder="100 م²" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
               </div>
             </div>
 
@@ -2461,11 +1984,11 @@ export default function App() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold">الإيجار الشهري (ج.م)</label>
-                  <input type="number" placeholder="25000" value={newUnit.rent} onChange={(e) => setNewUnit({ ...newUnit, rent: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+                  <input type="number" value={newUnit.rent} onChange={(e) => setNewUnit({ ...newUnit, rent: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
                 </div>
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">تاريخ نهاية العقد</label>
-                  <input type="date" value={newUnit.expireDate} onChange={(e) => setNewUnit({ ...newUnit, expireDate: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+                  <label className="block text-slate-400 mb-1 font-semibold">نهاية العقد</label>
+                  <input type="date" value={newUnit.expireDate} onChange={(e) => setNewUnit({ ...newUnit, expireDate: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
                 </div>
               </div>
             ) : (
@@ -2481,19 +2004,10 @@ export default function App() {
                 </label>
 
                 {newUnit.isSubleased && (
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">المستأجر من المالك</label>
-                      <input type="text" value={newUnit.subtenantName} onChange={(e) => setNewUnit({ ...newUnit, subtenantName: e.target.value })} placeholder="اسم المستأجر" className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200" />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">قيمة الإيجار (ج.م)</label>
-                      <input type="number" value={newUnit.subleaseRent} onChange={(e) => setNewUnit({ ...newUnit, subleaseRent: e.target.value })} placeholder="20000" className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200" />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 mb-1 text-[10px]">نهاية التأجير</label>
-                      <input type="date" value={newUnit.subleaseExpireDate} onChange={(e) => setNewUnit({ ...newUnit, subleaseExpireDate: e.target.value })} className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200" />
-                    </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="text" value={newUnit.subtenantName} onChange={(e) => setNewUnit({ ...newUnit, subtenantName: e.target.value })} placeholder="المستأجر" className="bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200" />
+                    <input type="number" value={newUnit.subleaseRent} onChange={(e) => setNewUnit({ ...newUnit, subleaseRent: e.target.value })} placeholder="قيمة الإيجار" className="bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200" />
+                    <input type="date" value={newUnit.subleaseExpireDate} onChange={(e) => setNewUnit({ ...newUnit, subleaseExpireDate: e.target.value })} className="bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200" />
                   </div>
                 )}
               </div>
@@ -2507,60 +2021,122 @@ export default function App() {
         </Modal>
       )}
 
-      {showAddInvoiceModal && (
-        <Modal title="إضافة مطالبة / فاتورة جديدة" onClose={() => setShowAddInvoiceModal(false)}>
-          <form onSubmit={handleAddInvoice} className="space-y-4 text-xs">
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">الوحدة / الطرف</label>
-              <select value={newInvoice.unitId} onChange={(e) => setNewInvoice({ ...newInvoice, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                <option value="">اختر الوحدة...</option>
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>{u.id} - {u.tenant} ({u.ownershipType})</option>
-                ))}
-              </select>
-            </div>
-
+      {editUnitForm && (
+        <Modal
+          title={`تعديل الوحدة (${editingUnitOriginalId})`}
+          onClose={() => {
+            setEditingUnitOriginalId(null);
+            setEditUnitForm(null);
+          }}
+        >
+          <form onSubmit={handleSaveEditedUnit} className="space-y-4 text-xs max-h-[75vh] overflow-y-auto pl-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">المبلغ (ج.م)</label>
-                <input required type="number" min="1" placeholder="20000" value={newInvoice.amount} onChange={(e) => setNewInvoice({ ...newInvoice, amount: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+                <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة</label>
+                <input required type="text" value={editUnitForm.id} onChange={(e) => setEditUnitForm({ ...editUnitForm, id: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
               </div>
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">البيان</label>
-                <input required type="text" placeholder="إيجار أو رسوم خدمات" value={newInvoice.type} onChange={(e) => setNewInvoice({ ...newInvoice, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">تاريخ الاستحقاق</label>
-                <input required type="date" value={newInvoice.dueDate} onChange={(e) => setNewInvoice({ ...newInvoice, dueDate: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الحالة</label>
-                <select value={newInvoice.status} onChange={(e) => setNewInvoice({ ...newInvoice, status: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  <option value="قيد الانتظار">مطالبة (مديونية غير محصلة)</option>
-                  <option value="متأخر">مطالبة متأخرة (مديونية)</option>
-                  <option value="مدفوع">محصّل بالفعل (في الخزينة)</option>
+                <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
+                <select value={editUnitForm.floor} onChange={(e) => setEditUnitForm({ ...editUnitForm, floor: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
+                  {mallConfig.floors.map((f) => (
+                    <option key={f.id} value={f.name}>{f.name} ({f.code})</option>
+                  ))}
                 </select>
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الاسم</label>
+                <input required type="text" value={editUnitForm.tenant} onChange={(e) => setEditUnitForm({ ...editUnitForm, tenant: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">وديعة الصيانة</label>
+                <input type="number" value={editUnitForm.maintenanceDeposit} onChange={(e) => setEditUnitForm({ ...editUnitForm, maintenanceDeposit: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+            </div>
+
+            <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 space-y-2">
+              <label className="flex items-center gap-2 text-[#00D8F6] font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editUnitForm.archiveCurrentContract)}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, archiveCurrentContract: e.target.checked })}
+                />
+                <Archive className="w-3.5 h-3.5" />
+                <span>أرشفة العقد / التشغيل السابق في السجل التاريخي</span>
+              </label>
+              {Array.isArray(editUnitForm.contractHistory) && editUnitForm.contractHistory.length > 0 && (
+                <div className="pt-2 border-t border-slate-800 space-y-1">
+                  {editUnitForm.contractHistory.map((h) => (
+                    <div key={h.id} className="text-[10px] text-slate-300 flex justify-between">
+                      <span>{h.partyName} ({h.archivedAt})</span>
+                      <span className="text-emerald-400">{Number(h.amount || 0).toLocaleString()} ج.م</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="pt-2 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => { setEditingUnitOriginalId(null); setEditUnitForm(null); }} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl">حفظ التعديلات</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showAddInvoiceModal && (
+        <Modal title="إضافة مطالبة / فاتورة جديدة" onClose={() => setShowAddInvoiceModal(false)}>
+          <form onSubmit={handleAddInvoice} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">الوحدة</label>
+              <select value={newInvoice.unitId} onChange={(e) => setNewInvoice({ ...newInvoice, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
+                <option value="">اختر الوحدة...</option>
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>{u.id} - {u.tenant}</option>
+                ))}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">المبلغ (ج.م)</label>
+                <input required type="number" min="1" value={newInvoice.amount} onChange={(e) => setNewInvoice({ ...newInvoice, amount: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">البيان</label>
+                <input required type="text" value={newInvoice.type} onChange={(e) => setNewInvoice({ ...newInvoice, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الاستحقاق</label>
+                <input required type="date" value={newInvoice.dueDate} onChange={(e) => setNewInvoice({ ...newInvoice, dueDate: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الحالة</label>
+                <select value={newInvoice.status} onChange={(e) => setNewInvoice({ ...newInvoice, status: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
+                  <option value="قيد الانتظار">مطالبة (غير محصلة)</option>
+                  <option value="متأخر">مطالبة متأخرة</option>
+                  <option value="مدفوع">محصّل (في الخزينة)</option>
+                </select>
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
               <button type="button" onClick={() => setShowAddInvoiceModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
-              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ السجل</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl">حفظ</button>
             </div>
           </form>
         </Modal>
       )}
 
       {showAddTicketModal && (
-        <Modal title="تسجيل بلاغ صيانة (يُقيّم بواسطة مسؤول الصيانة)" onClose={() => setShowAddTicketModal(false)}>
+        <Modal title="تسجيل بلاغ صيانة" onClose={() => setShowAddTicketModal(false)}>
           <form onSubmit={handleAddTicket} className="space-y-4 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">الوحدة</label>
-                <select value={newTicket.unitId} onChange={(e) => setNewTicket({ ...newTicket, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                <select value={newTicket.unitId} onChange={(e) => setNewTicket({ ...newTicket, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
                   <option value="">اختر الوحدة...</option>
                   {units.map((u) => (
                     <option key={u.id} value={u.id}>{u.id} - {u.tenant}</option>
@@ -2568,104 +2144,45 @@ export default function App() {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">التصنيف</label>
-                <select value={newTicket.category} onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  <option value="تكييف">تكييف</option>
-                  <option value="كهرباء">كهرباء</option>
-                  <option value="سباكة">سباكة</option>
-                  <option value="سلامة">سلامة</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">وصف العطل / البلاغ</label>
-              <input required type="text" placeholder="مثال: عطل في التكييف أو تسريب مياه" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
                 <label className="block text-slate-400 mb-1 font-semibold">الأولوية</label>
-                <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
                   <option value="منخفض">منخفض</option>
                   <option value="متوسط">متوسط</option>
                   <option value="عاجل">عاجل</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الفني المسؤول</label>
-                <input type="text" placeholder="فني التكييف أو يحدده المشرف" value={newTicket.assignedTo} onChange={(e) => setNewTicket({ ...newTicket, assignedTo: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
-              </div>
             </div>
-
-            <p className="text-[11px] text-slate-400 bg-[#070F1B] p-2.5 rounded-xl border border-slate-800">
-              يُرحّل البلاغ إلى مسؤول الصيانة لتحديد هل هو داخل العقد (وديعة الصيانة) أم خارجه، وتحديد المبلغ وأخذ الموافقة ثم إصدار مطالبة بعد الحل لحين التحصيل.
-            </p>
-
-            <div className="pt-2 flex items-center justify-end gap-2">
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">وصف العطل</label>
+              <input required type="text" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
               <button type="button" onClick={() => setShowAddTicketModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
-              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ البلاغ</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl">حفظ البلاغ</button>
             </div>
           </form>
         </Modal>
       )}
 
       {showInvoiceModal && selectedInvoice && (
-        <Modal
-          title={selectedInvoice.status === "مدفوع" ? "معاينة إيصال سداد رقمي" : "معاينة بيان مطالبة (مديونية)"}
-          onClose={() => setShowInvoiceModal(false)}
-        >
-          <div className="bg-white text-slate-900 p-6 rounded-xl space-y-6 text-right font-sans">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+        <Modal title="معاينة الإيصال / المطالبة" onClose={() => setShowInvoiceModal(false)}>
+          <div className="bg-white text-slate-900 p-6 rounded-xl space-y-4 text-right font-sans text-xs">
+            <div className="flex items-center justify-between border-b pb-3">
               <div>
-                <h3 className="text-xl font-black text-[#0B192C]">
-                  {selectedInvoice.status === "مدفوع" ? "إيصال استلام نقدية / خدمات" : "بيان مطالبة مالية (مديونية)"}
-                </h3>
-                <p className="text-xs text-slate-500">{mallConfig.mallName} - الإدارة التشغيلية</p>
+                <h3 className="text-lg font-black text-[#0B192C]">{selectedInvoice.status === "مدفوع" ? "إيصال سداد" : "بيان مطالبة"}</h3>
+                <p className="text-slate-500">{mallConfig.mallName}</p>
               </div>
-              <div className="text-left font-mono">
-                <span className="text-xs text-cyan-700 font-bold block">MMS Cloud Secured</span>
-                <span className="text-sm font-bold text-slate-700">{selectedInvoice.id}</span>
-              </div>
+              <span className="font-mono font-bold">{selectedInvoice.id}</span>
             </div>
-
-            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100">
-              <div>
-                <p className="text-slate-400">{selectedInvoice.status === "مدفوع" ? "استلمنا من:" : "الطرف المطالب بالسداد:"}</p>
-                <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.tenant}</p>
-              </div>
-              <div>
-                <p className="text-slate-400">رقم الوحدة:</p>
-                <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.unitId}</p>
-              </div>
-              <div>
-                <p className="text-slate-400">{selectedInvoice.status === "مدفوع" ? "المبلغ المحصّل:" : "قيمة المطالبة:"}</p>
-                <p className={`font-black text-base mt-0.5 ${selectedInvoice.status === "مدفوع" ? "text-emerald-600" : "text-amber-600"}`}>
-                  {selectedInvoice.amount.toLocaleString()} جنيه مصري
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-400">وذلك مقابل:</p>
-                <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.type}</p>
-              </div>
+            <div className="space-y-1">
+              <p><strong>الوحدة:</strong> {selectedInvoice.unitId} — {selectedInvoice.tenant}</p>
+              <p><strong>البيان:</strong> {selectedInvoice.type}</p>
+              <p><strong>المبلغ:</strong> {selectedInvoice.amount.toLocaleString()} ج.م</p>
+              <p><strong>الحالة:</strong> {selectedInvoice.status}</p>
             </div>
-
-            <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-              {selectedInvoice.status === "مدفوع" ? (
-                <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                  <CheckCircle2 className="w-4 h-4" /> محصّل ومقيد في الخزينة عبر نظام MMS
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 text-amber-600 font-bold">
-                  <AlertTriangle className="w-4 h-4" /> مطالبة قائمة لم تُحصّل بعد (مديونية)
-                </div>
-              )}
-              <p>التاريخ: {selectedInvoice.paymentDate !== "-" ? selectedInvoice.paymentDate : selectedInvoice.dueDate}</p>
-            </div>
-
-            <div className="pt-2 flex justify-end gap-2">
-              <button type="button" onClick={() => window.print()} className="bg-[#0B192C] text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-slate-800">
-                <Printer className="w-3.5 h-3.5 text-[#00D8F6]" /> {selectedInvoice.status === "مدفوع" ? "طباعة الإيصال" : "طباعة بيان المطالبة"}
+            <div className="flex justify-end pt-2">
+              <button type="button" onClick={() => window.print()} className="bg-[#0B192C] text-white px-4 py-2 rounded-lg font-bold inline-flex items-center gap-1.5">
+                <Printer className="w-3.5 h-3.5 text-[#00D8F6]" /> طباعة
               </button>
             </div>
           </div>
@@ -2676,33 +2193,27 @@ export default function App() {
         <Modal title="إرسال تنبيه جديد" onClose={() => setShowAnnouncementModal(false)}>
           <form onSubmit={handleAddAnnouncement} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">عنوان التنبيه</label>
-              <input required type="text" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })} placeholder="مثال: تنبيه بخصوص أعمال النظافة الدورية" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              <label className="block text-slate-400 mb-1 font-semibold">العنوان</label>
+              <input required type="text" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
             </div>
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">نص الرسالة / الإعلان</label>
-              <textarea required rows={4} value={newAnnouncement.content} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })} placeholder="اكتب التنبيه..." className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"></textarea>
+              <label className="block text-slate-400 mb-1 font-semibold">النص</label>
+              <textarea required rows={3} value={newAnnouncement.content} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الأهمية</label>
-                <select value={newAnnouncement.priority} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, priority: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  <option value="عادي">عادي</option>
-                  <option value="هام">هام جداً</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">الفئة المستهدفة</label>
-                <select value={newAnnouncement.target} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, target: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  <option value="جميع المستأجرين">جميع المستأجرين</option>
-                  <option value="القطاع التجاري">القطاع التجاري فقط</option>
-                  <option value="القطاع الإداري">القطاع الإداري فقط</option>
-                </select>
-              </div>
+              <select value={newAnnouncement.priority} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, priority: e.target.value })} className="bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
+                <option value="عادي">عادي</option>
+                <option value="هام">هام</option>
+              </select>
+              <select value={newAnnouncement.target} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, target: e.target.value })} className="bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200">
+                <option value="جميع المستأجرين">جميع المستأجرين</option>
+                <option value="القطاع التجاري">القطاع التجاري</option>
+                <option value="القطاع الإداري">القطاع الإداري</option>
+              </select>
             </div>
             <div className="pt-2 flex justify-end gap-2">
               <button type="button" onClick={() => setShowAnnouncementModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
-              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">إرسال فوراً</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl">إرسال</button>
             </div>
           </form>
         </Modal>
@@ -2713,7 +2224,7 @@ export default function App() {
 
 function NavItem({ icon, label, active, onClick, badge, badgeColor }) {
   return (
-    <button type="button" onClick={onClick} className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${active ? "bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 shadow-md shadow-[#00D8F6]/20 font-bold" : "text-slate-300 hover:bg-slate-800/60 hover:text-white"}`}>
+    <button type="button" onClick={onClick} className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${active ? "bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold" : "text-slate-300 hover:bg-slate-800/60 hover:text-white"}`}>
       <div className="flex items-center gap-3">
         {icon}
         <span>{label}</span>
@@ -2729,7 +2240,7 @@ function NavItem({ icon, label, active, onClick, badge, badgeColor }) {
 
 function KpiCard({ title, value, subtext, icon, badge, badgeType }) {
   return (
-    <div className="bg-[#0B192C] border border-slate-800 p-4 rounded-2xl space-y-3 hover:border-slate-700 transition shadow-lg">
+    <div className="bg-[#0B192C] border border-slate-800 p-4 rounded-2xl space-y-3 shadow-lg">
       <div className="flex items-center justify-between">
         <span className="text-xs text-slate-400 font-medium">{title}</span>
         <div className="p-2 bg-[#070F1B] rounded-xl border border-slate-800">{icon}</div>
@@ -2738,7 +2249,7 @@ function KpiCard({ title, value, subtext, icon, badge, badgeType }) {
         <h3 className="text-2xl font-black text-white">{value}</h3>
         <p className="text-[11px] text-slate-400 mt-0.5">{subtext}</p>
       </div>
-      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+      <div className="pt-2 border-t border-slate-800/80">
         <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${badgeType === "success" ? "bg-emerald-500/10 text-emerald-400" : badgeType === "warning" ? "bg-amber-500/10 text-amber-400" : badgeType === "danger" ? "bg-rose-500/10 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
           {badge}
         </span>
@@ -2749,7 +2260,7 @@ function KpiCard({ title, value, subtext, icon, badge, badgeType }) {
 
 function KanbanColumn({ title, count, color, children }) {
   return (
-    <div className={`border rounded-2xl p-4 flex flex-col min-h-[360px] ${color}`}>
+    <div className={`border rounded-2xl p-4 flex flex-col min-h-[320px] ${color}`}>
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
         <h3 className="font-bold text-slate-200 text-xs">{title}</h3>
         <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full">{count}</span>
@@ -2759,19 +2270,8 @@ function KanbanColumn({ title, count, color, children }) {
   );
 }
 
-function TicketCard({
-  ticket,
-  canManageTickets,
-  canDelete,
-  onMove,
-  onEvaluate,
-  onApproveClient,
-  onResolveAndInvoice,
-  onDelete,
-}) {
-  const [evalBillingType, setEvalBillingType] = useState(
-    ticket.billingType === "خارج العقد" ? "خارج العقد" : "داخل العقد"
-  );
+function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, onApproveClient, onResolveAndInvoice, onDelete }) {
+  const [evalBillingType, setEvalBillingType] = useState(ticket.billingType === "خارج العقد" ? "خارج العقد" : "داخل العقد");
   const [evalFee, setEvalFee] = useState(ticket.serviceFee ? String(ticket.serviceFee) : "");
   const [evalTechnician, setEvalTechnician] = useState(
     ticket.assignedTo && !ticket.assignedTo.includes("بانتظار") ? ticket.assignedTo : "فني الصيانة"
@@ -2779,13 +2279,10 @@ function TicketCard({
 
   const isOutside = ticket.billingType === "خارج العقد";
   const isWaitingApproval = isOutside && ticket.approvalStatus !== "موافق عليه";
-  const canIssueNow =
-    ticket.status !== "resolved" &&
-    ticket.billingType !== "غير محدد" &&
-    (!isOutside || ticket.approvalStatus === "موافق عليه");
+  const canIssueNow = ticket.status !== "resolved" && ticket.billingType !== "غير محدد" && (!isOutside || ticket.approvalStatus === "موافق عليه");
 
   return (
-    <div className="bg-[#0B192C] border border-slate-800 p-3.5 rounded-xl space-y-2.5 hover:border-[#00D8F6]/50 transition shadow-md text-xs">
+    <div className="bg-[#0B192C] border border-slate-800 p-3.5 rounded-xl space-y-2.5 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold text-[#00D8F6]">{ticket.id} • {ticket.unitId}</span>
         <div className="flex items-center gap-1.5">
@@ -2793,102 +2290,35 @@ function TicketCard({
             {ticket.priority}
           </span>
           {canDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
-              title="حذف البلاغ"
-            >
+            <button type="button" onClick={onDelete} className="text-slate-400 hover:text-rose-400 p-0.5 rounded">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      <p className="text-xs font-bold text-slate-100">{ticket.title}</p>
-      <p className="text-[10px] text-slate-400">الفني / التوجيه: {ticket.assignedTo}</p>
-
-      <div className="bg-[#070F1B] border border-slate-800/90 rounded-lg p-2 space-y-1 text-[10px]">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-400">التبعية التعاقدية:</span>
-          <span className="font-bold text-[#00D8F6]">{ticket.billingType}</span>
-        </div>
-        {ticket.billingType === "داخل العقد" && (
-          <p className="text-emerald-400 font-semibold">مغطى من وديعة الصيانة</p>
-        )}
-        {isOutside && (
-          <>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">قيمة الصيانة:</span>
-              <span className="font-bold text-amber-300">{Number(ticket.serviceFee || 0).toLocaleString()} ج.م</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">موافقة العميل:</span>
-              <span className={ticket.approvalStatus === "موافق عليه" ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                {ticket.approvalStatus}
-              </span>
-            </div>
-          </>
-        )}
-        {ticket.invoiceId && (
-          <p className="text-cyan-300 font-mono">رقم المطالبة الصادرة: {ticket.invoiceId}</p>
-        )}
-      </div>
+      <p className="font-bold text-slate-100">{ticket.title}</p>
+      <p className="text-[10px] text-slate-400">الفني: {ticket.assignedTo}</p>
 
       {canManageTickets && ticket.status !== "resolved" && (
         <div className="bg-[#070F1B] border border-slate-800 rounded-lg p-2.5 space-y-2 text-[10px]">
-          <p className="font-bold text-slate-300">تحديد مسؤول الصيانة:</p>
           <div className="grid grid-cols-2 gap-1.5">
-            <select
-              value={evalBillingType}
-              onChange={(e) => setEvalBillingType(e.target.value)}
-              className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200"
-            >
-              <option value="داخل العقد">داخل العقد (وديعة)</option>
-              <option value="خارج العقد">خارج العقد (بمبلغ)</option>
+            <select value={evalBillingType} onChange={(e) => setEvalBillingType(e.target.value)} className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200">
+              <option value="داخل العقد">داخل العقد</option>
+              <option value="خارج العقد">خارج العقد</option>
             </select>
-            <input
-              type="text"
-              value={evalTechnician}
-              onChange={(e) => setEvalTechnician(e.target.value)}
-              placeholder="اسم الفني"
-              className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200"
-            />
+            <input type="text" value={evalTechnician} onChange={(e) => setEvalTechnician(e.target.value)} placeholder="الفني" className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200" />
           </div>
-
           {evalBillingType === "خارج العقد" && (
-            <input
-              type="number"
-              min="1"
-              value={evalFee}
-              onChange={(e) => setEvalFee(e.target.value)}
-              placeholder="اكتب مبلغ الصيانة خارج العقد (ج.م)"
-              className="w-full bg-[#0B192C] border border-amber-500/40 rounded px-2 py-1 text-slate-200"
-            />
+            <input type="number" min="1" value={evalFee} onChange={(e) => setEvalFee(e.target.value)} placeholder="المبلغ (ج.م)" className="w-full bg-[#0B192C] border border-amber-500/40 rounded px-2 py-1 text-slate-200" />
           )}
-
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <button
-              type="button"
-              onClick={() =>
-                onEvaluate({
-                  billingType: evalBillingType,
-                  serviceFee: evalFee,
-                  assignedTo: evalTechnician,
-                })
-              }
-              className="bg-[#00D8F6]/20 hover:bg-[#00D8F6]/30 text-[#00D8F6] border border-[#00D8F6]/40 px-2.5 py-1 rounded font-bold transition"
-            >
+          <div className="flex flex-wrap gap-1.5">
+            <button type="button" onClick={() => onEvaluate({ billingType: evalBillingType, serviceFee: evalFee, assignedTo: evalTechnician })} className="bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/40 px-2.5 py-1 rounded font-bold">
               حفظ التحديد
             </button>
-
             {isWaitingApproval && (
-              <button
-                type="button"
-                onClick={onApproveClient}
-                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded font-bold inline-flex items-center gap-1 transition"
-              >
-                <ThumbsUp className="w-3 h-3" /> تأكيد موافقة العميل وإرسال الفني
+              <button type="button" onClick={onApproveClient} className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded font-bold inline-flex items-center gap-1">
+                <ThumbsUp className="w-3 h-3" /> موافقة العميل
               </button>
             )}
           </div>
@@ -2900,14 +2330,12 @@ function TicketCard({
           type="button"
           disabled={!canIssueNow}
           onClick={onResolveAndInvoice}
-          className={`w-full py-1.5 rounded-lg text-[10px] font-bold inline-flex items-center justify-center gap-1 transition ${
-            canIssueNow
-              ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
-              : "bg-slate-800/70 text-slate-500 border border-slate-700 cursor-not-allowed"
+          className={`w-full py-1.5 rounded-lg text-[10px] font-bold inline-flex items-center justify-center gap-1 ${
+            canIssueNow ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-slate-800/70 text-slate-500 border border-slate-700 cursor-not-allowed"
           }`}
         >
           <FileCheck2 className="w-3.5 h-3.5" />
-          {isOutside ? "تم حل المشكلة وإصدار المطالبة" : "تم حل المشكلة وإغلاق البلاغ"}
+          {isOutside ? "حل وإصدار مطالبة" : "حل وإغلاق البلاغ"}
         </button>
       )}
 
@@ -2915,20 +2343,10 @@ function TicketCard({
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
           <span className="text-slate-400">{ticket.date}</span>
           <div className="flex items-center gap-1">
-            {ticket.status !== "new" && (
-              <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>
-            )}
-            {ticket.status !== "in_progress" && (
-              <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>
-            )}
+            {ticket.status !== "new" && <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>}
+            {ticket.status !== "in_progress" && <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>}
             {ticket.status !== "resolved" && (
-              <button
-                type="button"
-                disabled={!canIssueNow}
-                onClick={() => onMove("resolved")}
-                title={canIssueNow ? "تأكيد الحل وإصدار المطالبة إن وجدت" : "يلزم تحديد التبعية وموافقة العميل أولاً"}
-                className={`px-1 ${canIssueNow ? "text-emerald-400 hover:underline" : "text-slate-600 cursor-not-allowed"}`}
-              >
+              <button type="button" disabled={!canIssueNow} onClick={() => onMove("resolved")} className={`px-1 ${canIssueNow ? "text-emerald-400 hover:underline" : "text-slate-600 cursor-not-allowed"}`}>
                 تم الحل
               </button>
             )}
