@@ -26,6 +26,7 @@ import {
   UserCheck,
   ExternalLink,
   Save,
+  Pencil,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -300,6 +301,9 @@ export default function App() {
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
 
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
+  const [editingUnitOriginalId, setEditingUnitOriginalId] = useState(null);
+  const [editUnitForm, setEditUnitForm] = useState(null);
+
   const [showAddInvoiceModal, setShowAddInvoiceModal] = useState(false);
   const [showAddTicketModal, setShowAddTicketModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -535,6 +539,83 @@ export default function App() {
       portalPassword: "",
     });
     setShowAddUnitModal(false);
+  };
+
+  const openEditUnitModal = (unit) => {
+    setEditingUnitOriginalId(unit.id);
+    setEditUnitForm({
+      id: unit.id,
+      tenant: unit.tenant || "",
+      ownershipType: unit.ownershipType || "مستأجر",
+      isSubleased: Boolean(unit.isSubleased),
+      subtenantName: unit.subtenantName || "",
+      subleaseRent: unit.subleaseRent ? String(unit.subleaseRent) : "",
+      subleaseExpireDate: unit.subleaseExpireDate || "",
+      type: unit.type || "تجاري",
+      area: unit.area || "",
+      rent: unit.rent ? String(unit.rent) : "",
+      expireDate: unit.expireDate || "",
+      floor: unit.floor || mallConfig.floors[0]?.name || "الدور الأرضي",
+      phone: unit.phone || "",
+      portalPassword: unit.portalPassword || "1234",
+      status: unit.status || "نشط",
+    });
+  };
+
+  const handleSaveEditedUnit = async (e) => {
+    e.preventDefault();
+    if (!editUnitForm || !editingUnitOriginalId || !editUnitForm.id.trim() || !editUnitForm.tenant.trim()) return;
+
+    const newId = editUnitForm.id.trim();
+    const isOwner = editUnitForm.ownershipType === "مالك";
+    const isSubleased = isOwner ? Boolean(editUnitForm.isSubleased) : false;
+
+    const nextStatus = isOwner
+      ? isSubleased
+        ? "مؤجرة للغير"
+        : "مملوكة للمالك"
+      : editUnitForm.status && !["مملوكة للمالك", "مؤجرة للغير"].includes(editUnitForm.status)
+        ? editUnitForm.status
+        : "نشط";
+
+    const updatedRecord = {
+      id: newId,
+      tenant: editUnitForm.tenant.trim(),
+      ownershipType: isOwner ? "مالك" : "مستأجر",
+      isSubleased,
+      subtenantName: isSubleased ? editUnitForm.subtenantName.trim() : "",
+      subleaseRent: isSubleased ? Number(editUnitForm.subleaseRent) || 0 : 0,
+      subleaseExpireDate: isSubleased ? editUnitForm.subleaseExpireDate : "",
+      type: editUnitForm.type,
+      area: editUnitForm.area.trim(),
+      rent: isOwner ? 0 : Number(editUnitForm.rent) || 0,
+      expireDate: isOwner ? "" : editUnitForm.expireDate,
+      floor: editUnitForm.floor,
+      phone: editUnitForm.phone.trim(),
+      portalPassword: editUnitForm.portalPassword.trim() || "1234",
+      status: nextStatus,
+    };
+
+    setUnits((prev) =>
+      prev.map((u) => (u.id === editingUnitOriginalId ? updatedRecord : u))
+    );
+
+    if (supabase) {
+      const { error: upsertErr } = await supabase.from("units").upsert(mapUnitToDb(updatedRecord));
+      if (upsertErr) {
+        setNoticeMessage(`تم التعديل محلياً لكن فشل الحفظ في قاعدة البيانات: ${upsertErr.message}`);
+      } else {
+        if (newId !== editingUnitOriginalId) {
+          await supabase.from("units").delete().eq("id", editingUnitOriginalId);
+        }
+        setNoticeMessage(`تم تحديث بيانات الوحدة ${updatedRecord.id} (${updatedRecord.ownershipType}) بنجاح.`);
+      }
+    } else {
+      setNoticeMessage(`تم تحديث بيانات الوحدة ${updatedRecord.id}.`);
+    }
+
+    setEditingUnitOriginalId(null);
+    setEditUnitForm(null);
   };
 
   const handleAddInvoice = async (e) => {
@@ -1118,13 +1199,22 @@ export default function App() {
                               </span>
                             </td>
                             <td className="p-4 text-center">
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
-                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                              >
-                                <Trash2 className="w-3 h-3" /> حذف
-                              </button>
+                              <div className="inline-flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditUnitModal(unit)}
+                                  className="bg-[#00D8F6]/10 hover:bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                >
+                                  <Pencil className="w-3 h-3" /> تعديل
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
+                                  className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                >
+                                  <Trash2 className="w-3 h-3" /> حذف
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1443,6 +1533,195 @@ export default function App() {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {editUnitForm && (
+        <Modal
+          title={`تعديل بيانات الوحدة (${editingUnitOriginalId})`}
+          onClose={() => {
+            setEditingUnitOriginalId(null);
+            setEditUnitForm(null);
+          }}
+        >
+          <form onSubmit={handleSaveEditedUnit} className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة</label>
+                <input
+                  required
+                  type="text"
+                  value={editUnitForm.id}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, id: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الصفة (مالك / مستأجر)</label>
+                <select
+                  value={editUnitForm.ownershipType}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, ownershipType: e.target.value, isSubleased: false })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                >
+                  <option value="مستأجر">مستأجر</option>
+                  <option value="مالك">مالك (بدون عقد إيجار)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">
+                  {editUnitForm.ownershipType === "مالك" ? "اسم المالك" : "اسم المستأجر / النشاط"}
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={editUnitForm.tenant}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, tenant: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">رقم التواصل</label>
+                <input
+                  type="text"
+                  value={editUnitForm.phone}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, phone: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
+              <input
+                required
+                type="text"
+                value={editUnitForm.portalPassword}
+                onChange={(e) => setEditUnitForm({ ...editUnitForm, portalPassword: e.target.value })}
+                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">القطاع</label>
+                <select
+                  value={editUnitForm.type}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, type: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                >
+                  <option value="تجاري">تجاري</option>
+                  <option value="إداري">إداري</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
+                <select
+                  value={editUnitForm.floor}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, floor: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                >
+                  {mallConfig.floors.map((f) => (
+                    <option key={f.id} value={f.name}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">المساحة</label>
+                <input
+                  type="text"
+                  value={editUnitForm.area}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, area: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+            </div>
+
+            {editUnitForm.ownershipType === "مستأجر" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">الإيجار الشهري (ج.م)</label>
+                  <input
+                    type="number"
+                    value={editUnitForm.rent}
+                    onChange={(e) => setEditUnitForm({ ...editUnitForm, rent: e.target.value })}
+                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">تاريخ نهاية العقد</label>
+                  <input
+                    type="date"
+                    value={editUnitForm.expireDate}
+                    onChange={(e) => setEditUnitForm({ ...editUnitForm, expireDate: e.target.value })}
+                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 space-y-3">
+                <label className="flex items-center gap-2 text-slate-200 font-semibold cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editUnitForm.isSubleased}
+                    onChange={(e) => setEditUnitForm({ ...editUnitForm, isSubleased: e.target.checked })}
+                    className="rounded border-slate-600"
+                  />
+                  <span>المالك يقوم بتأجير الوحدة للغير</span>
+                </label>
+
+                {editUnitForm.isSubleased && (
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">المستأجر من المالك</label>
+                      <input
+                        type="text"
+                        value={editUnitForm.subtenantName}
+                        onChange={(e) => setEditUnitForm({ ...editUnitForm, subtenantName: e.target.value })}
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">قيمة الإيجار (ج.م)</label>
+                      <input
+                        type="number"
+                        value={editUnitForm.subleaseRent}
+                        onChange={(e) => setEditUnitForm({ ...editUnitForm, subleaseRent: e.target.value })}
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">نهاية التأجير</label>
+                      <input
+                        type="date"
+                        value={editUnitForm.subleaseExpireDate}
+                        onChange={(e) => setEditUnitForm({ ...editUnitForm, subleaseExpireDate: e.target.value })}
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingUnitOriginalId(null);
+                  setEditUnitForm(null);
+                }}
+                className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800"
+              >
+                إلغاء
+              </button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">
+                حفظ التعديلات
+              </button>
+            </div>
+          </form>
         </Modal>
       )}
 
