@@ -1,110 +1,282 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
+  Building2,
   CreditCard,
   Wrench,
   BellRing,
-  ArrowRight,
   Plus,
   CheckCircle2,
+  AlertTriangle,
+  Printer,
+  X,
   Lock,
   LogOut,
+  ArrowRight,
+  ThumbsUp,
+  History,
+  ShieldCheck,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
-const FALLBACK_UNITS = [
-  { id: "G-04", tenant: "مطعم كوك اند غروب", ownershipType: "مستأجر", isSubleased: false, subtenantName: "", subleaseRent: 0, subleaseExpireDate: "", type: "تجاري", area: "120 م² + دوبليكس", rent: 35000, status: "نشط", expireDate: "2026-12-15", floor: "الدور الأرضي", phone: "01012345678", portalPassword: "1234" },
-  { id: "F-08", tenant: "شركة Valict للحلول التقنية", ownershipType: "مالك", isSubleased: false, subtenantName: "", subleaseRent: 0, subleaseExpireDate: "", type: "إداري", area: "150 م²", rent: 0, status: "مملوكة للمالك", expireDate: "", floor: "الدور الأول العلوي", phone: "01099998877", portalPassword: "1234" },
-  { id: "G-09", tenant: "م. محمود عبد الله (مالك)", ownershipType: "مالك", isSubleased: true, subtenantName: "سوبرماركت الراية", subleaseRent: 65000, subleaseExpireDate: "2027-05-20", type: "تجاري", area: "300 م²", rent: 0, status: "مؤجرة للغير", expireDate: "", floor: "الدور الأرضي", phone: "01234567890", portalPassword: "1234" },
+const DEFAULT_MALL_CONFIG = {
+  mallName: "مول الماسة 1",
+  floors: [
+    { id: "ground", name: "الدور الأرضي", category: "تجاري (محلات)", unitsCount: 40, notes: "محلات تجارية رئيسية" },
+    { id: "duplex", name: "دور الدوبليكس", category: "دوبليكس تجاري", unitsCount: 20, notes: "ملحق علوي لبعض الوحدات التجارية بالدور الأرضي" },
+    { id: "first", name: "الدور الأول العلوي", category: "إداري", unitsCount: 30, notes: "مكاتب وخدمات" },
+    { id: "second", name: "الدور الثاني", category: "إداري", unitsCount: 30, notes: "وحدات إدارية وخدمات" },
+  ],
+};
+
+const INITIAL_UNITS = [
+  {
+    id: "G-04",
+    tenant: "مطعم كوك اند غروب",
+    ownershipType: "مستأجر",
+    isSubleased: false,
+    subtenantName: "",
+    subleaseRent: 0,
+    subleaseExpireDate: "",
+    type: "تجاري",
+    area: "120 م² + دوبليكس",
+    rent: 35000,
+    status: "نشط",
+    expireDate: "2026-12-15",
+    floor: "الدور الأرضي",
+    phone: "01012345678",
+    portalPassword: "1234",
+    contractHistory: [],
+    maintenanceDeposit: 15000,
+  },
+  {
+    id: "F-12",
+    tenant: "مكتب الفرسان للهندسة",
+    ownershipType: "مستأجر",
+    isSubleased: false,
+    subtenantName: "",
+    subleaseRent: 0,
+    subleaseExpireDate: "",
+    type: "إداري",
+    area: "85 م²",
+    rent: 18000,
+    status: "تنبيه تجديد",
+    expireDate: "2026-12-10",
+    floor: "الدور الأول العلوي",
+    phone: "01123456789",
+    portalPassword: "1234",
+    contractHistory: [],
+    maintenanceDeposit: 10000,
+  },
+  {
+    id: "F-08",
+    tenant: "شركة Valict للحلول التقنية",
+    ownershipType: "مالك",
+    isSubleased: false,
+    subtenantName: "",
+    subleaseRent: 0,
+    subleaseExpireDate: "",
+    type: "إداري",
+    area: "150 م²",
+    rent: 0,
+    status: "مملوكة للمالك",
+    expireDate: "",
+    floor: "الدور الأول العلوي",
+    phone: "01099998877",
+    portalPassword: "1234",
+    contractHistory: [],
+    maintenanceDeposit: 20000,
+  },
+  {
+    id: "G-09",
+    tenant: "م. محمود عبد الله (مالك)",
+    ownershipType: "مالك",
+    isSubleased: true,
+    subtenantName: "سوبرماركت الراية",
+    subleaseRent: 65000,
+    subleaseExpireDate: "2027-05-20",
+    type: "تجاري",
+    area: "300 م²",
+    rent: 0,
+    status: "مؤجرة للغير",
+    expireDate: "",
+    floor: "الدور الأرضي",
+    phone: "01234567890",
+    portalPassword: "1234",
+    contractHistory: [],
+    maintenanceDeposit: 25000,
+  },
 ];
 
-export default function UnitPortalPage() {
-  const [units, setUnits] = useState(FALLBACK_UNITS);
-  const [unitCodeInput, setUnitCodeInput] = useState("");
-  const [passwordInput, setPasswordInput] = useState("");
-  const [verifiedUnitId, setVerifiedUnitId] = useState("");
-  const [loginError, setLoginError] = useState("");
+const INITIAL_INVOICES = [
+  { id: "INV-2026-001", unitId: "G-04", tenant: "مطعم كوك اند غروب", amount: 35000, type: "إيجار شهر نوفمبر", dueDate: "2026-11-05", status: "مدفوع", paymentDate: "2026-11-03" },
+  { id: "INV-2026-002", unitId: "F-12", tenant: "مكتب الفرسان للهندسة", amount: 18000, type: "إيجار شهر نوفمبر", dueDate: "2026-11-05", status: "مدفوع", paymentDate: "2026-11-04" },
+  { id: "INV-2026-004", unitId: "G-09", tenant: "م. محمود عبد الله (مالك)", amount: 65000, type: "رسوم إدارة وتأجير وحدة", dueDate: "2026-11-10", status: "مدفوع", paymentDate: "2026-11-08" },
+];
 
-  const [invoices, setInvoices] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [statusNote, setStatusNote] = useState("");
+const INITIAL_TICKETS = [
+  {
+    id: "TCK-101",
+    unitId: "G-04",
+    title: "عطل في التكييف المركزي بالفرع",
+    priority: "عاجل",
+    status: "new",
+    category: "تكييف",
+    date: "منذ ساعتين",
+    assignedTo: "بانتظار توجيه مسؤول الصيانة",
+    billingType: "غير محدد",
+    serviceFee: 0,
+    paymentStatus: "غير محدد",
+    approvalStatus: "غير مطلوب",
+    depositCovered: false,
+    invoiceIssued: false,
+    invoiceId: null,
+  },
+  {
+    id: "TCK-102",
+    unitId: "F-12",
+    title: "تركيب وحدة إنارة إضافية خارج العقد",
+    priority: "متوسط",
+    status: "new",
+    category: "كهرباء",
+    date: "منذ 5 ساعات",
+    assignedTo: "فني الكهرباء (علي)",
+    billingType: "خارج العقد",
+    serviceFee: 1800,
+    paymentStatus: "بانتظار الموافقة",
+    approvalStatus: "بانتظار موافقة العميل",
+    depositCovered: false,
+    invoiceIssued: false,
+    invoiceId: null,
+  },
+];
+
+const INITIAL_ANNOUNCEMENTS = [
+  { id: 1, title: "صيانة دورية للمولدات الكهربائية الاحتياطية", content: "نحيطكم علماً بأنه سيتم إجراء صيانة دورية للمولدات يوم السبت القادم من الساعة 2:00 صباحاً وحتى 4:00 صباحاً.", date: "2026-11-24", priority: "هام", target: "جميع المستأجرين" },
+];
+
+const mapUnitFromDb = (row) => {
+  const ownershipType = row.ownership_type || "مستأجر";
+  const isSubleased = Boolean(row.is_subleased);
+  return {
+    id: row.id,
+    tenant: row.tenant,
+    ownershipType,
+    isSubleased,
+    subtenantName: row.subtenant_name || "",
+    subleaseRent: Number(row.sublease_rent) || 0,
+    subleaseExpireDate: row.sublease_expire_date || "",
+    type: row.type,
+    area: row.area || "",
+    rent: ownershipType === "مالك" ? 0 : Number(row.rent) || 0,
+    status: row.status || (ownershipType === "مالك" ? (isSubleased ? "مؤجرة للغير" : "مملوكة للمالك") : "نشط"),
+    expireDate: ownershipType === "مالك" ? "" : row.expire_date || "",
+    floor: row.floor || "الدور الأرضي",
+    phone: row.phone || "",
+    portalPassword: row.portal_password || "1234",
+    contractHistory: Array.isArray(row.contract_history) ? row.contract_history : [],
+    maintenanceDeposit: Number(row.maintenance_deposit) || 0,
+  };
+};
+
+const mapInvoiceFromDb = (row) => ({
+  id: row.id,
+  unitId: row.unit_id,
+  tenant: row.tenant,
+  amount: Number(row.amount) || 0,
+  type: row.type,
+  dueDate: row.due_date,
+  status: row.status,
+  paymentDate: row.payment_date || "-",
+});
+
+const mapTicketToDb = (t) => ({
+  id: t.id,
+  unit_id: t.unitId,
+  title: t.title,
+  priority: t.priority,
+  status: t.status,
+  category: t.category || "عام",
+  date_label: t.date || "الآن",
+  assigned_to: t.assignedTo || "بانتظار توجيه مسؤول الصيانة",
+  billing_type: t.billingType || "غير محدد",
+  service_fee: Number(t.serviceFee) || 0,
+  payment_status: t.paymentStatus || "غير محدد",
+  approval_status: t.approvalStatus || "غير مطلوب",
+  deposit_covered: Boolean(t.depositCovered),
+  invoice_issued: Boolean(t.invoiceIssued),
+  invoice_id: t.invoiceId || null,
+});
+
+const mapTicketFromDb = (row) => ({
+  id: row.id,
+  unitId: row.unit_id,
+  title: row.title,
+  priority: row.priority,
+  status: row.status,
+  category: row.category || "عام",
+  date: row.date_label || "الآن",
+  assignedTo: row.assigned_to || "بانتظار توجيه مسؤول الصيانة",
+  billingType: row.billing_type || "غير محدد",
+  serviceFee: Number(row.service_fee) || 0,
+  paymentStatus: row.payment_status || "غير محدد",
+  approvalStatus: row.approval_status || "غير مطلوب",
+  depositCovered: Boolean(row.deposit_covered),
+  invoiceIssued: Boolean(row.invoice_issued),
+  invoiceId: row.invoice_id || null,
+});
+
+export default function PortalPage() {
+  const [mallName, setMallName] = useState(DEFAULT_MALL_CONFIG.mallName);
+  const [units, setUnits] = useState(INITIAL_UNITS);
+  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
+  const [tickets, setTickets] = useState(INITIAL_TICKETS);
+  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
+
+  const [selectedUnitId, setSelectedUnitId] = useState(INITIAL_UNITS[0].id);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [authenticatedUnitId, setAuthenticatedUnitId] = useState("");
+
+  const [activeTab, setActiveTab] = useState("summary");
+  const [notice, setNotice] = useState("");
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   const [ticketForm, setTicketForm] = useState({
     title: "",
     category: "تكييف",
     priority: "متوسط",
-    billingType: "ضمن العقد",
-    serviceFee: "",
   });
 
   const loadPortalData = useCallback(async () => {
     if (!supabase) return;
-    const [uRes, iRes, tRes, aRes] = await Promise.all([
+
+    const [settingsRes, unitsRes, invoicesRes, ticketsRes, announcementsRes] = await Promise.all([
+      supabase.from("mall_settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("units").select("*"),
       supabase.from("invoices").select("*"),
       supabase.from("tickets").select("*"),
       supabase.from("announcements").select("*").order("id", { ascending: false }),
     ]);
 
-    if (!uRes.error && uRes.data?.length) {
-      setUnits(
-        uRes.data.map((row) => ({
-          id: row.id,
-          tenant: row.tenant,
-          ownershipType: row.ownership_type || "مستأجر",
-          isSubleased: Boolean(row.is_subleased),
-          subtenantName: row.subtenant_name || "",
-          subleaseRent: Number(row.sublease_rent) || 0,
-          subleaseExpireDate: row.sublease_expire_date || "",
-          type: row.type,
-          area: row.area || "",
-          rent: Number(row.rent) || 0,
-          status: row.status || "نشط",
-          expireDate: row.expire_date || "",
-          floor: row.floor || "الدور الأرضي",
-          phone: row.phone || "",
-          portalPassword: row.portal_password || "1234",
-        }))
-      );
+    if (!settingsRes.error && settingsRes.data?.mall_name) {
+      setMallName(settingsRes.data.mall_name);
     }
-
-    if (!iRes.error && iRes.data) {
-      setInvoices(
-        iRes.data.map((row) => ({
-          id: row.id,
-          unitId: row.unit_id,
-          tenant: row.tenant,
-          amount: Number(row.amount) || 0,
-          type: row.type,
-          dueDate: row.due_date,
-          status: row.status,
-          paymentDate: row.payment_date || "-",
-        }))
-      );
+    if (!unitsRes.error && unitsRes.data?.length > 0) {
+      const mappedUnits = unitsRes.data.map(mapUnitFromDb);
+      setUnits(mappedUnits);
+      setSelectedUnitId((prev) => (mappedUnits.some((u) => u.id === prev) ? prev : mappedUnits[0].id));
     }
-
-    if (!tRes.error && tRes.data) {
-      setTickets(
-        tRes.data.map((row) => ({
-          id: row.id,
-          unitId: row.unit_id,
-          title: row.title,
-          priority: row.priority,
-          status: row.status,
-          category: row.category || "عام",
-          date: row.date_label || "الآن",
-          billingType: row.billing_type || "ضمن العقد",
-          serviceFee: Number(row.service_fee) || 0,
-          paymentStatus: row.payment_status || "مدفوع",
-        }))
-      );
+    if (!invoicesRes.error && invoicesRes.data?.length > 0) {
+      setInvoices(invoicesRes.data.map(mapInvoiceFromDb));
     }
-
-    if (!aRes.error && aRes.data) {
-      setAnnouncements(aRes.data);
+    if (!ticketsRes.error && ticketsRes.data?.length > 0) {
+      setTickets(ticketsRes.data.map(mapTicketFromDb));
+    }
+    if (!announcementsRes.error && announcementsRes.data?.length > 0) {
+      setAnnouncements(announcementsRes.data);
     }
   }, []);
 
@@ -113,34 +285,9 @@ export default function UnitPortalPage() {
   }, [loadPortalData]);
 
   const activeUnit = useMemo(
-    () => units.find((u) => u.id.toLowerCase() === verifiedUnitId.trim().toLowerCase()) || null,
-    [units, verifiedUnitId]
+    () => units.find((u) => u.id === authenticatedUnitId) || null,
+    [units, authenticatedUnitId]
   );
-
-  const handleEnterUnit = (e) => {
-    e.preventDefault();
-    const code = unitCodeInput.trim();
-    const pass = passwordInput;
-    const matched = units.find(
-      (u) =>
-        u.id.toLowerCase() === code.toLowerCase() &&
-        String(u.portalPassword || "1234") === pass
-    );
-    if (!matched) {
-      setLoginError("كود الوحدة أو كلمة المرور غير صحيحة.");
-      return;
-    }
-    setLoginError("");
-    setVerifiedUnitId(matched.id);
-    setPasswordInput("");
-  };
-
-  const handleLogoutUnit = () => {
-    setVerifiedUnitId("");
-    setUnitCodeInput("");
-    setPasswordInput("");
-    setStatusNote("");
-  };
 
   const unitInvoices = useMemo(
     () => (activeUnit ? invoices.filter((inv) => inv.unitId === activeUnit.id) : []),
@@ -152,326 +299,496 @@ export default function UnitPortalPage() {
     [tickets, activeUnit]
   );
 
-  const handleSubmitTicket = async (e) => {
+  const unpaidAmount = useMemo(
+    () => unitInvoices.filter((inv) => inv.status !== "مدفوع").reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0),
+    [unitInvoices]
+  );
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const target = units.find((u) => u.id === selectedUnitId);
+    if (!target) {
+      setLoginError("اختر وحدة صحيحة.");
+      return;
+    }
+    if (String(target.portalPassword || "1234") !== passwordInput) {
+      setLoginError("كلمة مرور البوابة غير صحيحة لهذه الوحدة.");
+      return;
+    }
+    setLoginError("");
+    setPasswordInput("");
+    setActiveTab("summary");
+    setAuthenticatedUnitId(target.id);
+  };
+
+  const handleLogout = () => {
+    setAuthenticatedUnitId("");
+    setPasswordInput("");
+    setLoginError("");
+    setNotice("");
+  };
+
+  // تقديم بلاغ صيانة بدون أي تسعير أو تحديد تعاقدي من المستأجر/المالك
+  const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!activeUnit || !ticketForm.title.trim()) return;
 
-    const isPaid = ticketForm.billingType === "مدفوع";
-    const feeValue = isPaid ? Number(ticketForm.serviceFee) || 0 : 0;
-    const ticketId = `TCK-${Math.floor(200 + Math.random() * 799)}`;
-
-    const newTicket = {
-      id: ticketId,
+    const ticketRecord = {
+      id: `TCK-${Math.floor(200 + Math.random() * 799)}`,
       unitId: activeUnit.id,
       title: ticketForm.title.trim(),
+      category: ticketForm.category,
       priority: ticketForm.priority,
       status: "new",
-      category: ticketForm.category,
       date: "الآن",
-      billingType: isPaid ? "مدفوع" : "ضمن العقد",
-      serviceFee: feeValue,
-      paymentStatus: isPaid ? "غير مدفوع" : "مدفوع",
+      assignedTo: "بانتظار مراجعة مسؤول الصيانة",
+      billingType: "غير محدد",
+      serviceFee: 0,
+      paymentStatus: "غير محدد",
+      approvalStatus: "غير مطلوب",
+      depositCovered: false,
+      invoiceIssued: false,
+      invoiceId: null,
     };
 
-    setTickets((prev) => [newTicket, ...prev]);
-
-    let invoiceId = null;
-    if (isPaid && feeValue > 0) {
-      invoiceId = `INV-SRV-${Math.floor(100 + Math.random() * 899)}`;
-      const today = new Date().toISOString().split("T")[0];
-      const newInv = {
-        id: invoiceId,
-        unitId: activeUnit.id,
-        tenant: activeUnit.tenant,
-        amount: feeValue,
-        type: `صيانة خارج العقد (${ticketId})`,
-        dueDate: today,
-        status: "قيد الانتظار",
-        paymentDate: "-",
-      };
-      setInvoices((prev) => [newInv, ...prev]);
-      if (supabase) {
-        await supabase.from("invoices").insert({
-          id: newInv.id,
-          unit_id: newInv.unitId,
-          tenant: newInv.tenant,
-          amount: newInv.amount,
-          type: newInv.type,
-          due_date: newInv.dueDate,
-          status: newInv.status,
-          payment_date: newInv.paymentDate,
-        });
-      }
-    }
+    setTickets((prev) => [ticketRecord, ...prev]);
 
     if (supabase) {
-      await supabase.from("tickets").insert({
-        id: newTicket.id,
-        unit_id: newTicket.unitId,
-        title: newTicket.title,
-        priority: newTicket.priority,
-        status: newTicket.status,
-        category: newTicket.category,
-        date_label: newTicket.date,
-        assigned_to: "فريق الصيانة",
-        billing_type: newTicket.billingType,
-        service_fee: newTicket.serviceFee,
-        payment_status: newTicket.paymentStatus,
-      });
+      await supabase.from("tickets").upsert(mapTicketToDb(ticketRecord));
     }
 
-    setStatusNote(
-      isPaid
-        ? `تم تسجيل طلب الصيانة المدفوع ${ticketId} وإصدار الفاتورة ${invoiceId}؛ لن يُغلق البلاغ قبل إتمام الدفع.`
-        : `تم إرسال بلاغ الصيانة ${ticketId} إلى إدارة المول.`
-    );
-    setTicketForm({ title: "", category: "تكييف", priority: "متوسط", billingType: "ضمن العقد", serviceFee: "" });
+    setTicketForm({ title: "", category: "تكييف", priority: "متوسط" });
+    setNotice(`تم إرسال بلاغ الصيانة ${ticketRecord.id} إلى مسؤول الصيانة لتحديد التبعية التعاقدية والمبلغ.`);
+  };
+
+  // موافقة المالك أو المستأجر على مبلغ الصيانة خارج العقد لإرسال الفني
+  const handleApproveQuote = async (ticketId) => {
+    const target = tickets.find((t) => t.id === ticketId);
+    if (!target) return;
+
+    const updated = {
+      ...target,
+      approvalStatus: "موافق عليه",
+      paymentStatus: "بانتظار إتمام الإصلاح وإصدار الفاتورة",
+      status: "in_progress",
+      assignedTo:
+        target.assignedTo && !target.assignedTo.includes("بانتظار")
+          ? target.assignedTo
+          : "فني الصيانة (تمت الموافقة وجارٍ التنفيذ)",
+    };
+
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
+
+    if (supabase) {
+      await supabase
+        .from("tickets")
+        .update({
+          approval_status: updated.approvalStatus,
+          payment_status: updated.paymentStatus,
+          status: updated.status,
+          assigned_to: updated.assignedTo,
+        })
+        .eq("id", ticketId);
+    }
+
+    setNotice(`تمت موافقتك على مبلغ الصيانة (${Number(target.serviceFee || 0).toLocaleString()} ج.م) للبلاغ ${ticketId}؛ سيتم توجيه الفني للتنفيذ.`);
   };
 
   if (!activeUnit) {
     return (
       <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 flex items-center justify-center p-4 font-sans">
         <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#00D8F6]/15 border border-[#00D8F6]/30 flex items-center justify-center text-[#00D8F6]">
-                <Lock className="w-4 h-4" />
-              </div>
-              <div>
-                <h1 className="text-base font-black text-white">بوابة المالك والمستأجر</h1>
-                <p className="text-[11px] text-slate-400">أدخل كود الوحدة وكلمة المرور الخاصة بها</p>
-              </div>
-            </div>
-            <Link href="/" className="text-xs text-slate-400 hover:text-white inline-flex items-center gap-1">
-              <ArrowRight className="w-3.5 h-3.5" /> الإدارة
-            </Link>
+          <div className="flex flex-col items-center text-center border-b border-slate-800 pb-4 gap-2">
+            <img src="/valict-logo.png" alt="MMS Logo" className="h-12 w-auto object-contain" />
+            <h1 className="text-lg font-black text-white">بوابة المالك والمستأجر — {mallName}</h1>
+            <p className="text-xs text-slate-400">متابعة الفواتير، الموافقة على صيانة خارج العقد، وتقديم بلاغات الصيانة</p>
           </div>
 
-          <form onSubmit={handleEnterUnit} className="space-y-4 text-xs">
+          <form onSubmit={handleLogin} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-300 mb-1.5 font-semibold">كود الوحدة</label>
-              <input
-                required
-                type="text"
-                value={unitCodeInput}
-                onChange={(e) => setUnitCodeInput(e.target.value)}
-                placeholder="مثال: G-04 أو F-08"
+              <label className="block text-slate-300 mb-1.5 font-semibold">اختر الوحدة</label>
+              <select
+                value={selectedUnitId}
+                onChange={(e) => {
+                  setSelectedUnitId(e.target.value);
+                  setLoginError("");
+                }}
                 className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
-              />
+              >
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.id} — {u.tenant} ({u.ownershipType})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
-              <label className="block text-slate-300 mb-1.5 font-semibold">كلمة المرور</label>
-              <input
-                required
-                type="password"
-                value={passwordInput}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                placeholder="أدخل كلمة مرور الوحدة"
-                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
-              />
+              <label className="block text-slate-300 mb-1.5 font-semibold">كلمة مرور الوحدة</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  required
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder="أدخل كلمة مرور الوحدة"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl pr-10 pl-3 py-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
             </div>
 
-            {loginError && (
-              <p className="text-rose-400 text-[11px] font-semibold">{loginError}</p>
-            )}
+            {loginError && <p className="text-rose-400 text-[11px] font-semibold">{loginError}</p>}
 
-            <button type="submit" className="w-full bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold py-2.5 rounded-xl hover:brightness-110 transition">
-              دخول إلى وحدتي
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold py-2.5 rounded-xl hover:brightness-110 transition"
+            >
+              دخول إلى بوابة الوحدة
             </button>
           </form>
+
+          <div className="pt-2 border-t border-slate-800 flex justify-center">
+            <Link href="/" className="text-xs text-[#00D8F6] hover:underline inline-flex items-center gap-1">
+              <ArrowRight className="w-3.5 h-3.5" /> العودة إلى لوحة الإدارة
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
-  const isOwner = activeUnit.ownershipType === "مالك";
-
   return (
-    <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 p-4 sm:p-6 lg:p-8 font-sans">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 text-right font-sans">
+      <header className="bg-[#0B192C] border-b border-slate-800 px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <img src="/valict-logo.png" alt="MMS Logo" className="h-10 w-auto object-contain" />
           <div>
-            <p className="text-xs text-[#00D8F6] font-bold">Mall Vision • وحدة {activeUnit.id}</p>
-            <h1 className="text-xl font-black text-white mt-0.5">{activeUnit.tenant} ({activeUnit.ownershipType})</h1>
+            <h1 className="text-sm sm:text-base font-black text-white">
+              الوحدة {activeUnit.id} • {activeUnit.tenant}
+            </h1>
+            <p className="text-[11px] text-slate-400">
+              {mallName} — {activeUnit.floor} ({activeUnit.ownershipType})
+            </p>
           </div>
-
-          <button
-            type="button"
-            onClick={handleLogoutUnit}
-            className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border border-slate-700 self-start md:self-auto"
-          >
-            <LogOut className="w-3.5 h-3.5 text-rose-400" /> خروج
-          </button>
         </div>
 
-        {statusNote && (
-          <div className="bg-[#0B192C] border border-[#00D8F6]/40 text-slate-200 px-4 py-3 rounded-xl text-xs flex items-center justify-between">
-            <span>{statusNote}</span>
-            <button type="button" onClick={() => setStatusNote("")} className="text-slate-400 hover:text-white">إغلاق</button>
+        <div className="flex items-center gap-2 text-xs">
+          <Link href="/" className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg border border-slate-700">
+            لوحة الإدارة
+          </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 px-3 py-1.5 rounded-lg border border-rose-500/30 inline-flex items-center gap-1 font-bold"
+          >
+            <LogOut className="w-3.5 h-3.5" /> خروج
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+        {notice && (
+          <div className="bg-[#0B192C] border border-[#00D8F6]/40 text-slate-200 px-4 py-3 rounded-xl text-xs flex items-center justify-between gap-3">
+            <span>{notice}</span>
+            <button type="button" onClick={() => setNotice("")} className="text-slate-400 hover:text-white">
+              إغلاق
+            </button>
           </div>
         )}
 
-        <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
-          <div className="bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
-            <p className="text-slate-400">الصفة والاسم</p>
-            <p className="font-bold text-white text-sm mt-1">{activeUnit.tenant}</p>
-            <span className="inline-block mt-1 px-2 py-0.5 rounded bg-[#00D8F6]/15 text-[#00D8F6] text-[10px] font-bold">
-              {activeUnit.ownershipType}
-            </span>
-          </div>
-
-          <div className="bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
-            <p className="text-slate-400">بيانات الوحدة</p>
-            <p className="font-bold text-white text-sm mt-1">وحدة {activeUnit.id} • {activeUnit.floor}</p>
-            <p className="text-slate-400 text-[11px] mt-1">{activeUnit.area} • {activeUnit.type}</p>
-          </div>
-
-          <div className="bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
-            <p className="text-slate-400">{isOwner ? "وضع الملكية والتأجير" : "عقد الإيجار"}</p>
-            {isOwner ? (
-              activeUnit.isSubleased ? (
-                <>
-                  <p className="font-bold text-emerald-400 text-sm mt-1">مؤجرة للغير: {activeUnit.subtenantName}</p>
-                  <p className="text-slate-400 text-[11px] mt-1">إيجار التأجير: {activeUnit.subleaseRent.toLocaleString()} ج.م</p>
-                </>
-              ) : (
-                <>
-                  <p className="font-bold text-slate-200 text-sm mt-1">مملوكة للمالك</p>
-                  <p className="text-slate-400 text-[11px] mt-1">لا يوجد عقد إيجار على الوحدة</p>
-                </>
-              )
-            ) : (
-              <>
-                <p className="font-bold text-emerald-400 text-sm mt-1">{activeUnit.rent.toLocaleString()} ج.م / شهر</p>
-                <p className="text-slate-400 text-[11px] mt-1">ينتهي العقد: {activeUnit.expireDate || "-"}</p>
-              </>
-            )}
-          </div>
-
-          <div className="bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
-            <p className="text-slate-400">الحالة التشغيلية</p>
-            <p className="font-bold text-white text-sm mt-1 flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" /> {activeUnit.status}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+          <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
+            <p className="text-slate-400">وديعة الصيانة للوحدة</p>
+            <p className="text-xl font-black text-[#00D8F6] mt-1">
+              {Number(activeUnit.maintenanceDeposit || 0).toLocaleString()} ج.م
             </p>
-            <p className="text-slate-400 text-[11px] mt-1">هاتف: {activeUnit.phone || "-"}</p>
+          </div>
+          <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
+            <p className="text-slate-400">المستحقات غير المسددة</p>
+            <p className={`text-xl font-black mt-1 ${unpaidAmount > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+              {unpaidAmount.toLocaleString()} ج.م
+            </p>
+          </div>
+          <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
+            <p className="text-slate-400">بلاغات الصيانة</p>
+            <p className="text-xl font-black text-amber-400 mt-1">{unitTickets.length} بلاغ</p>
+          </div>
+          <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
+            <p className="text-slate-400">حالة الوحدة</p>
+            <p className="text-base font-black text-emerald-400 mt-1">{activeUnit.status}</p>
+            {activeUnit.ownershipType === "مالك" && activeUnit.isSubleased && (
+              <p className="text-[10px] text-slate-400 mt-0.5">مؤجرة لـ: {activeUnit.subtenantName}</p>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
-            <h2 className="font-bold text-sm text-white flex items-center gap-2">
-              <Wrench className="w-4 h-4 text-amber-400" /> طلب صيانة جديد ومتابعة بلاغات وحدتي
-            </h2>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {[
+            { id: "summary", label: "ملخص الوحدة والسجل التاريخي", icon: <ShieldCheck className="w-4 h-4" /> },
+            { id: "maintenance", label: "طلبات الصيانة والموافقات", icon: <Wrench className="w-4 h-4" /> },
+            { id: "billing", label: "الفواتير والإيصالات", icon: <CreditCard className="w-4 h-4" /> },
+            { id: "announcements", label: "التنبيهات", icon: <BellRing className="w-4 h-4" /> },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2 border transition ${
+                activeTab === tab.id
+                  ? "bg-[#00D8F6] text-slate-950 border-[#00D8F6]"
+                  : "bg-[#0B192C] text-slate-300 border-slate-800 hover:border-slate-700"
+              }`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
 
-            <form onSubmit={handleSubmitTicket} className="space-y-3 text-xs">
-              <input
-                required
-                type="text"
-                placeholder="اكتب وصف العطل أو الخدمة المطلوبة..."
-                value={ticketForm.title}
-                onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
-                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
-              />
-
-              <div className="grid grid-cols-3 gap-2">
-                <select value={ticketForm.category} onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })} className="bg-[#070F1B] border border-slate-700 rounded-xl p-2 text-slate-200">
-                  <option value="تكييف">تكييف</option>
-                  <option value="كهرباء">كهرباء</option>
-                  <option value="سباكة">سباكة</option>
-                  <option value="سلامة">سلامة</option>
-                </select>
-
-                <select value={ticketForm.priority} onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value })} className="bg-[#070F1B] border border-slate-700 rounded-xl p-2 text-slate-200">
-                  <option value="منخفض">منخفض</option>
-                  <option value="متوسط">متوسط</option>
-                  <option value="عاجل">عاجل</option>
-                </select>
-
-                <select value={ticketForm.billingType} onChange={(e) => setTicketForm({ ...ticketForm, billingType: e.target.value })} className="bg-[#070F1B] border border-slate-700 rounded-xl p-2 text-slate-200">
-                  <option value="ضمن العقد">ضمن العقد</option>
-                  <option value="مدفوع">خارج العقد (مدفوع)</option>
-                </select>
-              </div>
-
-              {ticketForm.billingType === "مدفوع" && (
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  placeholder="القيمة التقديرية للصيانة المدفوعة (ج.م)"
-                  value={ticketForm.serviceFee}
-                  onChange={(e) => setTicketForm({ ...ticketForm, serviceFee: e.target.value })}
-                  className="w-full bg-[#070F1B] border border-amber-500/40 rounded-xl p-2.5 text-slate-200"
-                />
-              )}
-
-              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl inline-flex items-center gap-1.5">
-                <Plus className="w-4 h-4" /> إرسال بلاغ الصيانة
-              </button>
-            </form>
-
-            <div className="space-y-2 pt-2 border-t border-slate-800">
-              {unitTickets.map((t) => (
-                <div key={t.id} className="bg-[#070F1B] p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs gap-2">
-                  <div>
-                    <p className="font-bold text-slate-100">{t.title}</p>
-                    <p className="text-[10px] text-slate-400">
-                      {t.id} • {t.billingType === "مدفوع" ? `مدفوع (${t.serviceFee.toLocaleString()} ج.م - ${t.paymentStatus})` : "ضمن العقد"}
-                    </p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-[#00D8F6] text-[10px] font-bold">
-                    {t.status === "resolved" ? "تم الحل" : t.status === "in_progress" ? "قيد التنفيذ" : "جديد"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-6">
+        {activeTab === "summary" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
             <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-3">
-              <h2 className="font-bold text-sm text-white flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-[#00D8F6]" /> فواتير وإيصالات وحدتي
+              <h2 className="text-sm font-bold text-white border-b border-slate-800 pb-2.5 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#00D8F6]" /> بيانات العقد والتشغيل الحالية
               </h2>
-              {unitInvoices.length === 0 ? (
-                <p className="text-xs text-slate-400">لا توجد فواتير مسجلة لهذه الوحدة حالياً.</p>
-              ) : (
-                <div className="space-y-2 text-xs">
-                  {unitInvoices.map((inv) => (
-                    <div key={inv.id} className="bg-[#070F1B] p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div className="space-y-2 text-slate-300">
+                <p>الطرف الرئيسي: <strong className="text-white">{activeUnit.tenant}</strong> ({activeUnit.ownershipType})</p>
+                <p>المساحة والدور: <strong className="text-white">{activeUnit.area || "-"} — {activeUnit.floor}</strong></p>
+                {activeUnit.ownershipType === "مستأجر" ? (
+                  <>
+                    <p>الإيجار الشهري: <strong className="text-emerald-400">{Number(activeUnit.rent || 0).toLocaleString()} ج.م</strong></p>
+                    <p>تاريخ نهاية العقد: <strong className="text-white">{activeUnit.expireDate || "-"}</strong></p>
+                  </>
+                ) : activeUnit.isSubleased ? (
+                  <>
+                    <p>المستأجر الحالي للوحدة: <strong className="text-emerald-400">{activeUnit.subtenantName || "-"}</strong></p>
+                    <p>قيمة الإيجار / التأجير: <strong className="text-emerald-400">{Number(activeUnit.subleaseRent || 0).toLocaleString()} ج.م</strong></p>
+                    <p>نهاية التأجير: <strong className="text-white">{activeUnit.subleaseExpireDate || "-"}</strong></p>
+                  </>
+                ) : (
+                  <p className="text-slate-400">الوحدة مدارَة مباشرة بواسطة المالك بدون عقد إيجار حالي.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-3">
+              <h2 className="text-sm font-bold text-white border-b border-slate-800 pb-2.5 flex items-center gap-2">
+                <History className="w-4 h-4 text-[#00D8F6]" /> السجل التاريخي للعقود والمشغلين السابقين
+              </h2>
+              {Array.isArray(activeUnit.contractHistory) && activeUnit.contractHistory.length > 0 ? (
+                <div className="space-y-2.5">
+                  {activeUnit.contractHistory.map((h) => (
+                    <div key={h.id} className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 flex items-center justify-between gap-2">
                       <div>
-                        <p className="font-bold text-slate-100">{inv.type}</p>
-                        <p className="text-[10px] text-slate-400">{inv.id} • استحقاق {inv.dueDate}</p>
+                        <p className="font-bold text-slate-100">{h.partyName} ({h.ownershipType})</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">{h.reason} • أُرشف في: {h.archivedAt}</p>
                       </div>
-                      <div className="text-left">
-                        <p className="font-black text-emerald-400">{inv.amount.toLocaleString()} ج.م</p>
-                        <span className="text-[10px] text-slate-300">{inv.status}</span>
-                      </div>
+                      <span className="text-emerald-400 font-bold shrink-0">{Number(h.amount || 0).toLocaleString()} ج.م</span>
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-slate-400 text-xs">لا توجد عقود أو مشغلون سابقون مؤرشفون على هذه الوحدة حتى الآن.</p>
               )}
             </div>
+          </div>
+        )}
 
-            <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-3">
-              <h2 className="font-bold text-sm text-white flex items-center gap-2">
-                <BellRing className="w-4 h-4 text-[#00D8F6]" /> التنبيهات والإعلانات
-              </h2>
-              <div className="space-y-2 text-xs">
-                {announcements.map((a) => (
-                  <div key={a.id} className="bg-[#070F1B] p-3 rounded-xl border border-slate-800 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <p className="font-bold text-slate-100">{a.title}</p>
-                      <span className="text-[10px] text-slate-400">{a.date}</span>
-                    </div>
-                    <p className="text-slate-300 text-[11px]">{a.content}</p>
-                  </div>
-                ))}
+        {activeTab === "maintenance" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
+            <form onSubmit={handleCreateTicket} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
+              <div className="border-b border-slate-800 pb-2.5">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-[#00D8F6]" /> تقديم طلب صيانة جديد
+                </h2>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  يحدد مسؤول الصيانة التبعية التعاقدية والمبلغ بعد مراجعة العقد
+                </p>
               </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">وصف العطل</label>
+                <input
+                  required
+                  type="text"
+                  value={ticketForm.title}
+                  onChange={(e) => setTicketForm({ ...ticketForm, title: e.target.value })}
+                  placeholder="مثال: عطل في التكييف أو تسريب مياه"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">التصنيف</label>
+                  <select
+                    value={ticketForm.category}
+                    onChange={(e) => setTicketForm({ ...ticketForm, category: e.target.value })}
+                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                  >
+                    <option value="تكييف">تكييف</option>
+                    <option value="كهرباء">كهرباء</option>
+                    <option value="سباكة">سباكة</option>
+                    <option value="سلامة">سلامة</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">الأولوية</label>
+                  <select
+                    value={ticketForm.priority}
+                    onChange={(e) => setTicketForm({ ...ticketForm, priority: e.target.value })}
+                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                  >
+                    <option value="منخفض">منخفض</option>
+                    <option value="متوسط">متوسط</option>
+                    <option value="عاجل">عاجل</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold py-2.5 rounded-xl hover:brightness-110 transition"
+              >
+                إرسال بلاغ الصيانة
+              </button>
+            </form>
+
+            <div className="lg:col-span-2 bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-3">
+              <h2 className="text-sm font-bold text-white border-b border-slate-800 pb-2.5">بلاغات الصيانة الخاصة بالوحدة</h2>
+              {unitTickets.length === 0 ? (
+                <p className="text-slate-400">لا توجد بلاغات صيانة مسجلة لهذه الوحدة.</p>
+              ) : (
+                <div className="space-y-3">
+                  {unitTickets.map((t) => {
+                    const needsApproval = t.billingType === "خارج العقد" && t.approvalStatus !== "موافق عليه";
+                    return (
+                      <div key={t.id} className="bg-[#070F1B] border border-slate-800 rounded-xl p-3.5 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-[#00D8F6]">{t.id} • {t.title}</span>
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 text-[10px] font-bold">
+                            {t.status === "resolved" ? "تم الحل" : t.status === "in_progress" ? "قيد التنفيذ" : "جديد"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          التصنيف: {t.category} • التبعية: <strong className="text-slate-200">{t.billingType}</strong>
+                          {t.billingType === "داخل العقد" && " (مغطى من وديعة الصيانة)"}
+                        </p>
+                        {t.billingType === "خارج العقد" && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+                            <span className="text-amber-300 font-bold">
+                              المبلغ المحدد خارج العقد: {Number(t.serviceFee || 0).toLocaleString()} ج.م ({t.approvalStatus})
+                            </span>
+                            {needsApproval && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveQuote(t.id)}
+                                className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-lg font-bold inline-flex items-center gap-1"
+                              >
+                                <ThumbsUp className="w-3.5 h-3.5" /> موافقة على المبلغ وإرسال الفني
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {t.invoiceId && (
+                          <p className="text-[10px] text-cyan-300 font-mono">تم إصدار الفاتورة بعد الحل: {t.invoiceId}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "billing" && (
+          <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4 text-xs">
+            <h2 className="text-sm font-bold text-white border-b border-slate-800 pb-2.5">فواتير الوحدة</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-right">
+                <thead className="bg-[#070F1B] text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="p-3">رقم الفاتورة</th>
+                    <th className="p-3">البيان</th>
+                    <th className="p-3">المبلغ</th>
+                    <th className="p-3">تاريخ الاستحقاق</th>
+                    <th className="p-3">الحالة</th>
+                    <th className="p-3 text-center">إيصال</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {unitInvoices.map((inv) => (
+                    <tr key={inv.id}>
+                      <td className="p-3 font-mono text-slate-300">{inv.id}</td>
+                      <td className="p-3 text-slate-100">{inv.type}</td>
+                      <td className="p-3 font-bold text-white">{Number(inv.amount || 0).toLocaleString()} ج.م</td>
+                      <td className="p-3 text-slate-400">{inv.dueDate}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${inv.status === "مدفوع" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedInvoice(inv)}
+                          className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 px-2.5 py-1 rounded text-[10px] font-semibold inline-flex items-center gap-1"
+                        >
+                          <Printer className="w-3 h-3" /> عرض
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "announcements" && (
+          <div className="space-y-3 text-xs">
+            {announcements.map((a) => (
+              <div key={a.id} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-white text-sm">{a.title}</h3>
+                  <span className="text-[11px] text-slate-400">{a.date}</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed">{a.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-white text-slate-900 w-full max-w-md rounded-2xl p-6 space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="text-base font-black text-[#0B192C]">إيصال فاتورة</h3>
+                <p className="text-slate-500">{mallName}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedInvoice(null)} className="text-slate-500 hover:text-slate-900">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <p>رقم الفاتورة: <strong>{selectedInvoice.id}</strong></p>
+              <p>الوحدة: <strong>{selectedInvoice.unitId} — {selectedInvoice.tenant}</strong></p>
+              <p>البيان: <strong>{selectedInvoice.type}</strong></p>
+              <p>المبلغ: <strong className="text-emerald-700">{Number(selectedInvoice.amount || 0).toLocaleString()} ج.م</strong></p>
+              <p>الحالة: <strong>{selectedInvoice.status}</strong></p>
+            </div>
+            <div className="pt-2 flex justify-end">
+              <button type="button" onClick={() => window.print()} className="bg-[#0B192C] text-white px-4 py-2 rounded-lg font-bold inline-flex items-center gap-1.5">
+                <Printer className="w-3.5 h-3.5 text-[#00D8F6]" /> طباعة
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
