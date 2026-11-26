@@ -20,6 +20,7 @@ import {
   Sparkles,
   Calendar,
   DollarSign,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -140,6 +141,7 @@ export default function App() {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [unitFilter, setUnitFilter] = useState("الكل");
   const [invoiceFilter, setInvoiceFilter] = useState("الكل");
@@ -354,6 +356,42 @@ export default function App() {
 
     setNewAnnouncement({ title: "", content: "", priority: "عادي", target: "جميع المستأجرين" });
     setShowAnnouncementModal(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    const { kind, id, label } = deleteTarget;
+    setDeleteTarget(null);
+
+    const tableMap = {
+      unit: "units",
+      invoice: "invoices",
+      ticket: "tickets",
+      announcement: "announcements",
+    };
+
+    if (kind === "unit") setUnits((prev) => prev.filter((item) => item.id !== id));
+    if (kind === "invoice") {
+      setInvoices((prev) => prev.filter((item) => item.id !== id));
+      if (selectedInvoice?.id === id) {
+        setSelectedInvoice(null);
+        setShowInvoiceModal(false);
+      }
+    }
+    if (kind === "ticket") setTickets((prev) => prev.filter((item) => item.id !== id));
+    if (kind === "announcement") setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+
+    const tableName = tableMap[kind];
+    if (supabase && tableName) {
+      const { error } = await supabase.from(tableName).delete().eq("id", id);
+      setNoticeMessage(
+        error
+          ? `تم الحذف من العرض لكن تعذر الحذف من قاعدة البيانات: ${error.message}`
+          : `تم حذف ${label} نهائياً من قاعدة البيانات.`
+      );
+    } else {
+      setNoticeMessage(`تم حذف ${label} من العرض الحالي.`);
+    }
   };
 
   const moveTicket = async (ticketId, newStatus) => {
@@ -632,6 +670,7 @@ export default function App() {
                         <th className="p-4">القيمة الشهرية</th>
                         <th className="p-4">تاريخ نهاية العقد</th>
                         <th className="p-4">حالة العقد</th>
+                        <th className="p-4 text-center">إجراء</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 text-slate-200">
@@ -650,6 +689,15 @@ export default function App() {
                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${unit.status.includes("نشط") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : unit.status.includes("تنبيه") ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30"}`}>
                               {unit.status}
                             </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `عقد الوحدة ${unit.id} (${unit.tenant})` })}
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                            >
+                              <Trash2 className="w-3 h-3" /> حذف
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -729,6 +777,13 @@ export default function App() {
                             <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
                               <Printer className="w-3 h-3" /> الإيصال
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `الفاتورة ${inv.id}` })}
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                            >
+                              <Trash2 className="w-3 h-3" /> حذف
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -756,19 +811,34 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <KanbanColumn title="بلاغات جديدة" count={tickets.filter((t) => t.status === "new").length} color="border-rose-500/50 bg-rose-500/5">
                   {tickets.filter((t) => t.status === "new").map((ticket) => (
-                    <TicketCard key={ticket.id} ticket={ticket} onMove={(status) => moveTicket(ticket.id, status)} />
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      onMove={(status) => moveTicket(ticket.id, status)}
+                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
+                    />
                   ))}
                 </KanbanColumn>
 
                 <KanbanColumn title="قيد التنفيذ" count={tickets.filter((t) => t.status === "in_progress").length} color="border-amber-500/50 bg-amber-500/5">
                   {tickets.filter((t) => t.status === "in_progress").map((ticket) => (
-                    <TicketCard key={ticket.id} ticket={ticket} onMove={(status) => moveTicket(ticket.id, status)} />
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      onMove={(status) => moveTicket(ticket.id, status)}
+                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
+                    />
                   ))}
                 </KanbanColumn>
 
                 <KanbanColumn title="تم الحل والإغلاق" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
                   {tickets.filter((t) => t.status === "resolved").map((ticket) => (
-                    <TicketCard key={ticket.id} ticket={ticket} onMove={(status) => moveTicket(ticket.id, status)} />
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      onMove={(status) => moveTicket(ticket.id, status)}
+                      onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
+                    />
                   ))}
                 </KanbanColumn>
               </div>
@@ -797,7 +867,16 @@ export default function App() {
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${item.priority === "هام" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-[#00D8F6]/20 text-[#00D8F6] border-[#00D8F6]/30"}`}>{item.priority}</span>
                         <h3 className="font-bold text-slate-100 text-sm">{item.title}</h3>
                       </div>
-                      <span className="text-[11px] text-slate-400">{item.date}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-slate-400">{item.date}</span>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
+                          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                        >
+                          <Trash2 className="w-3 h-3" /> حذف
+                        </button>
+                      </div>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">{item.content}</p>
                     <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
@@ -811,6 +890,24 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {deleteTarget && (
+        <Modal title="تأكيد الحذف" onClose={() => setDeleteTarget(null)}>
+          <div className="space-y-4 text-xs">
+            <p className="text-slate-200 leading-relaxed">
+              هل أنت متأكد من حذف <strong className="text-rose-400">{deleteTarget.label}</strong>؟ لا يمكن التراجع عن هذا الإجراء بعد التنفيذ.
+            </p>
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">
+                إلغاء
+              </button>
+              <button type="button" onClick={confirmDelete} className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-5 py-2 rounded-xl transition">
+                تأكيد الحذف
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showAddUnitModal && (
         <Modal title="إضافة وحدة ومستأجر جديد" onClose={() => setShowAddUnitModal(false)}>
@@ -1097,14 +1194,24 @@ function KanbanColumn({ title, count, color, children }) {
   );
 }
 
-function TicketCard({ ticket, onMove }) {
+function TicketCard({ ticket, onMove, onDelete }) {
   return (
     <div className="bg-[#0B192C] border border-slate-800 p-3.5 rounded-xl space-y-2 hover:border-[#00D8F6]/50 transition shadow-md">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold text-[#00D8F6]">{ticket.id} • {ticket.unitId}</span>
-        <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
-          {ticket.priority}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
+            {ticket.priority}
+          </span>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
+            title="حذف البلاغ"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
       <p className="text-xs font-bold text-slate-100">{ticket.title}</p>
       <p className="text-[10px] text-slate-400">الفني المسؤول: {ticket.assignedTo}</p>
