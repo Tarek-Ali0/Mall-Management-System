@@ -368,6 +368,22 @@ const mapTicketFromDb = (row) => ({
   paymentStatus: row.payment_status || "مدفوع",
 });
 
+function BrandLogoBlock({ compact = false }) {
+  return (
+    <div className="flex flex-col items-center text-center gap-1.5">
+      <img
+        src="/valict-logo.png"
+        alt="MMS Logo"
+        className={`${compact ? "h-12" : "h-14"} w-auto max-w-[190px] object-contain`}
+      />
+      <div>
+        <div className="text-base font-black tracking-widest text-white leading-tight">MMS</div>
+        <div className="text-[11px] text-slate-400 font-medium leading-tight">Mall Management System</div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [users, setUsers] = useState(INITIAL_USERS);
   const [selectedUserId, setSelectedUserId] = useState(INITIAL_USERS[0].id);
@@ -1108,16 +1124,8 @@ export default function App() {
     return (
       <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 flex items-center justify-center p-4 font-sans">
         <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00D8F6] to-blue-600 flex items-center justify-center font-bold text-slate-950 text-lg">
-                V
-              </div>
-              <div>
-                <h1 className="text-base font-black text-white">تسجيل دخول النظام</h1>
-                <p className="text-[11px] text-slate-400">اختر المستخدم وأدخل كلمة المرور</p>
-              </div>
-            </div>
+          <div className="flex flex-col items-center border-b border-slate-800 pb-4 gap-3 relative">
+            <BrandLogoBlock compact />
             <Link href="/portal" className="text-xs text-[#00D8F6] hover:underline inline-flex items-center gap-1">
               بوابة الوحدة <ExternalLink className="w-3 h-3" />
             </Link>
@@ -1193,21 +1201,8 @@ export default function App() {
     <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 text-right flex flex-col md:flex-row selection:bg-[#00D8F6] selection:text-slate-950 font-sans">
       <aside className="w-full md:w-72 bg-[#0B192C] border-b md:border-b-0 md:border-l border-slate-800 flex flex-col justify-between shrink-0">
         <div>
-          <div className="p-6 border-b border-slate-800/80 bg-gradient-to-r from-[#0B192C] to-[#1E3E62]/30">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00D8F6] to-blue-600 flex items-center justify-center shadow-lg shadow-[#00D8F6]/20 font-bold text-slate-950 text-xl border border-white/20">
-                V
-              </div>
-              <div>
-                <h1 className="text-xl font-black tracking-wider text-white flex items-center gap-1.5">
-                  Valict
-                  <span className="text-[10px] bg-[#00D8F6]/20 text-[#00D8F6] px-2 py-0.5 rounded-full border border-[#00D8F6]/30 font-medium">
-                    Mall Vision
-                  </span>
-                </h1>
-                <p className="text-[11px] text-slate-400 font-medium">Validate Your Vision</p>
-              </div>
-            </div>
+          <div className="p-5 border-b border-slate-800/80 bg-gradient-to-r from-[#0B192C] to-[#1E3E62]/30">
+            <BrandLogoBlock />
 
             <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
               <span className="flex items-center gap-1.5 text-slate-300 font-semibold">
@@ -1351,11 +1346,11 @@ export default function App() {
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00D8F6] bg-[#00D8F6]/10 px-2.5 py-0.5 rounded-full border border-[#00D8F6]/20 mb-2">
-                      <Sparkles className="w-3 h-3" /> نظام الإدارة التشغيلي الموحد
+                      <Sparkles className="w-3 h-3" /> MMS • Mall Management System
                     </span>
                     <h2 className="text-2xl font-black text-white">لوحة تحكم {mallConfig.mallName}</h2>
                     <p className="text-slate-300 text-xs mt-1 max-w-xl">
-                      متابعة لحظية للأداء المالي، نسبة الإشغال، تذاكر الصيانة، الملاك والمستأجرين عبر منصة Valict.
+                      متابعة لحظية للأداء المالي، نسبة الإشغال، تذاكر الصيانة، الملاك والمستأجرين عبر نظام MMS.
                     </p>
                   </div>
                   <div className="flex items-center gap-2 text-xs bg-[#070F1B]/70 p-3 rounded-xl border border-slate-700/50">
@@ -2517,7 +2512,7 @@ export default function App() {
                 <p className="text-xs text-slate-500">{mallConfig.mallName} - الإدارة التشغيلية</p>
               </div>
               <div className="text-left font-mono">
-                <span className="text-xs text-cyan-700 font-bold block">Valict Cloud Secured</span>
+                <span className="text-xs text-cyan-700 font-bold block">MMS Cloud Secured</span>
                 <span className="text-sm font-bold text-slate-700">{selectedInvoice.id}</span>
               </div>
             </div>
@@ -2543,7 +2538,7 @@ export default function App() {
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
               <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                <CheckCircle2 className="w-4 h-4" /> معتمد ومسدد رقمياً عبر نظام Valict
+                <CheckCircle2 className="w-4 h-4" /> معتمد ومسدد رقمياً عبر نظام MMS
               </div>
               <p>التاريخ: {selectedInvoice.paymentDate !== "-" ? selectedInvoice.paymentDate : selectedInvoice.dueDate}</p>
             </div>
