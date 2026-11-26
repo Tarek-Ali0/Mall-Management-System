@@ -33,6 +33,8 @@ import {
   KeyRound,
   History,
   Archive,
+  FileCheck2,
+  ThumbsUp,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -129,6 +131,7 @@ const INITIAL_UNITS = [
     phone: "01012345678",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 15000,
   },
   {
     id: "F-12",
@@ -147,6 +150,7 @@ const INITIAL_UNITS = [
     phone: "01123456789",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 10000,
   },
   {
     id: "F-08",
@@ -165,6 +169,7 @@ const INITIAL_UNITS = [
     phone: "01099998877",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 20000,
   },
   {
     id: "G-09",
@@ -183,6 +188,7 @@ const INITIAL_UNITS = [
     phone: "01234567890",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 25000,
   },
   {
     id: "S-02",
@@ -201,6 +207,7 @@ const INITIAL_UNITS = [
     phone: "01055554433",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 12000,
   },
   {
     id: "F-05",
@@ -219,6 +226,7 @@ const INITIAL_UNITS = [
     phone: "01188887766",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 8000,
   },
   {
     id: "S-14",
@@ -237,6 +245,7 @@ const INITIAL_UNITS = [
     phone: "01044443322",
     portalPassword: "1234",
     contractHistory: [],
+    maintenanceDeposit: 15000,
   },
 ];
 
@@ -249,10 +258,74 @@ const INITIAL_INVOICES = [
 ];
 
 const INITIAL_TICKETS = [
-  { id: "TCK-101", unitId: "G-04", title: "عطل في التكييف المركزي بالفرع", priority: "عاجل", status: "new", category: "تكييف", date: "منذ ساعتين", assignedTo: "م. أحمد حسن", billingType: "ضمن العقد", serviceFee: 0, paymentStatus: "مدفوع" },
-  { id: "TCK-102", unitId: "F-12", title: "تركيب وحدة إنارة إضافية خارج العقد", priority: "متوسط", status: "in_progress", category: "كهرباء", date: "منذ 5 ساعات", assignedTo: "فني الكهرباء (علي)", billingType: "مدفوع", serviceFee: 1800, paymentStatus: "غير مدفوع" },
-  { id: "TCK-103", unitId: "S-02", title: "إنارة المدخل الخارجي للصيدلية", priority: "منخفض", status: "in_progress", category: "كهرباء", date: "أمس", assignedTo: "فني الكهرباء (علي)", billingType: "ضمن العقد", serviceFee: 0, paymentStatus: "مدفوع" },
-  { id: "TCK-104", unitId: "G-09", title: "فحص الحساسات الخاصة بالحريق", priority: "عاجل", status: "resolved", category: "سلامة", date: "منذ يومين", assignedTo: "فريق السلامة المهنية", billingType: "ضمن العقد", serviceFee: 0, paymentStatus: "مدفوع" },
+  {
+    id: "TCK-101",
+    unitId: "G-04",
+    title: "عطل في التكييف المركزي بالفرع",
+    priority: "عاجل",
+    status: "new",
+    category: "تكييف",
+    date: "منذ ساعتين",
+    assignedTo: "بانتظار توجيه مسؤول الصيانة",
+    billingType: "غير محدد",
+    serviceFee: 0,
+    paymentStatus: "غير محدد",
+    approvalStatus: "غير مطلوب",
+    depositCovered: false,
+    invoiceIssued: false,
+    invoiceId: null,
+  },
+  {
+    id: "TCK-102",
+    unitId: "F-12",
+    title: "تركيب وحدة إنارة إضافية خارج العقد",
+    priority: "متوسط",
+    status: "new",
+    category: "كهرباء",
+    date: "منذ 5 ساعات",
+    assignedTo: "فني الكهرباء (علي)",
+    billingType: "خارج العقد",
+    serviceFee: 1800,
+    paymentStatus: "بانتظار الموافقة",
+    approvalStatus: "بانتظار موافقة العميل",
+    depositCovered: false,
+    invoiceIssued: false,
+    invoiceId: null,
+  },
+  {
+    id: "TCK-103",
+    unitId: "S-02",
+    title: "إنارة المدخل الخارجي للصيدلية",
+    priority: "منخفض",
+    status: "in_progress",
+    category: "كهرباء",
+    date: "أمس",
+    assignedTo: "فني الكهرباء (علي)",
+    billingType: "داخل العقد",
+    serviceFee: 0,
+    paymentStatus: "مسدد من الوديعة",
+    approvalStatus: "مغطى من وديعة الصيانة",
+    depositCovered: true,
+    invoiceIssued: false,
+    invoiceId: null,
+  },
+  {
+    id: "TCK-104",
+    unitId: "G-09",
+    title: "فحص الحساسات الخاصة بالحريق",
+    priority: "عاجل",
+    status: "resolved",
+    category: "سلامة",
+    date: "منذ يومين",
+    assignedTo: "فريق السلامة المهنية",
+    billingType: "داخل العقد",
+    serviceFee: 0,
+    paymentStatus: "مسدد من الوديعة",
+    approvalStatus: "مغطى من وديعة الصيانة",
+    depositCovered: true,
+    invoiceIssued: false,
+    invoiceId: null,
+  },
 ];
 
 const INITIAL_ANNOUNCEMENTS = [
@@ -303,6 +376,8 @@ const mapUnitToDb = (u) => ({
   floor: u.floor || "الدور الأرضي",
   phone: u.phone || "",
   portal_password: u.portalPassword || "1234",
+  contract_history: Array.isArray(u.contractHistory) ? u.contractHistory : [],
+  maintenance_deposit: Number(u.maintenanceDeposit) || 0,
 });
 
 const mapUnitFromDb = (row) => {
@@ -325,6 +400,7 @@ const mapUnitFromDb = (row) => {
     phone: row.phone || "",
     portalPassword: row.portal_password || "1234",
     contractHistory: Array.isArray(row.contract_history) ? row.contract_history : [],
+    maintenanceDeposit: Number(row.maintenance_deposit) || 0,
   };
 };
 
@@ -359,9 +435,13 @@ const mapTicketToDb = (t) => ({
   category: t.category || "عام",
   date_label: t.date || "الآن",
   assigned_to: t.assignedTo || "فريق الصيانة",
-  billing_type: t.billingType || "ضمن العقد",
+  billing_type: t.billingType || "غير محدد",
   service_fee: Number(t.serviceFee) || 0,
-  payment_status: t.paymentStatus || "مدفوع",
+  payment_status: t.paymentStatus || "غير محدد",
+  approval_status: t.approvalStatus || "غير مطلوب",
+  deposit_covered: Boolean(t.depositCovered),
+  invoice_issued: Boolean(t.invoiceIssued),
+  invoice_id: t.invoiceId || null,
 });
 
 const mapTicketFromDb = (row) => ({
@@ -373,9 +453,13 @@ const mapTicketFromDb = (row) => ({
   category: row.category || "عام",
   date: row.date_label || "الآن",
   assignedTo: row.assigned_to || "فريق الصيانة",
-  billingType: row.billing_type || "ضمن العقد",
+  billingType: row.billing_type || "غير محدد",
   serviceFee: Number(row.service_fee) || 0,
-  paymentStatus: row.payment_status || "مدفوع",
+  paymentStatus: row.payment_status || "غير محدد",
+  approvalStatus: row.approval_status || "غير مطلوب",
+  depositCovered: Boolean(row.deposit_covered),
+  invoiceIssued: Boolean(row.invoice_issued),
+  invoiceId: row.invoice_id || null,
 });
 
 function BrandLogoBlock({ compact = false }) {
@@ -460,6 +544,7 @@ export default function App() {
     floor: DEFAULT_MALL_CONFIG.floors[0].name,
     phone: "",
     portalPassword: "",
+    maintenanceDeposit: "10000",
   });
 
   const [newInvoice, setNewInvoice] = useState({
@@ -475,10 +560,7 @@ export default function App() {
     title: "",
     priority: "متوسط",
     category: "تكييف",
-    assignedTo: "فريق الصيانة",
-    billingType: "ضمن العقد",
-    serviceFee: "",
-    paymentStatus: "مدفوع",
+    assignedTo: "بانتظار توجيه مسؤول الصيانة",
   });
 
   const [newAnnouncement, setNewAnnouncement] = useState({
@@ -757,6 +839,7 @@ export default function App() {
       status: isOwner ? (isSubleased ? "مؤجرة للغير" : "مملوكة للمالك") : "نشط",
       portalPassword: newUnit.portalPassword.trim() || "1234",
       contractHistory: [],
+      maintenanceDeposit: Number(newUnit.maintenanceDeposit) || 0,
     };
 
     setUnits((prev) => [...prev, unitRecord]);
@@ -785,6 +868,7 @@ export default function App() {
       floor: mallConfig.floors[0]?.name || "الدور الأرضي",
       phone: "",
       portalPassword: "",
+      maintenanceDeposit: "10000",
     });
     setShowAddUnitModal(false);
   };
@@ -807,6 +891,7 @@ export default function App() {
       phone: unit.phone || "",
       portalPassword: unit.portalPassword || "1234",
       status: unit.status || "نشط",
+      maintenanceDeposit: unit.maintenanceDeposit !== undefined ? String(unit.maintenanceDeposit) : "0",
       contractHistory: Array.isArray(unit.contractHistory) ? unit.contractHistory : [],
       archiveCurrentContract: false,
       archiveReason: "انتهاء العقد / تغيير المشغل",
@@ -841,6 +926,20 @@ export default function App() {
         reason: editUnitForm.archiveReason || "إنهاء / أرشفة العقد السابق",
       };
       nextHistory = [historyEntry, ...nextHistory];
+
+      if (supabase) {
+        await supabase.from("unit_contract_history").upsert({
+          id: historyEntry.id,
+          unit_id: newId,
+          party_name: historyEntry.partyName,
+          ownership_type: historyEntry.ownershipType,
+          amount: historyEntry.amount,
+          start_date: "",
+          end_date: historyEntry.endDate,
+          archived_at: historyEntry.archivedAt,
+          reason: historyEntry.reason,
+        });
+      }
     }
 
     const nextStatus = isOwner
@@ -867,6 +966,7 @@ export default function App() {
       phone: editUnitForm.phone.trim(),
       portalPassword: editUnitForm.portalPassword.trim() || "1234",
       status: nextStatus,
+      maintenanceDeposit: Number(editUnitForm.maintenanceDeposit) || 0,
       contractHistory: nextHistory,
     };
 
@@ -899,7 +999,7 @@ export default function App() {
   const handleRequestDeleteUnit = (unit) => {
     const unpaidInvoices = invoices.filter((inv) => inv.unitId === unit.id && inv.status !== "مدفوع");
     const openOrUnpaidTickets = tickets.filter(
-      (t) => t.unitId === unit.id && (t.status !== "resolved" || (t.billingType === "مدفوع" && t.paymentStatus !== "مدفوع"))
+      (t) => t.unitId === unit.id && (t.status !== "resolved" || (t.billingType === "خارج العقد" && !t.invoiceIssued))
     );
 
     if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
@@ -909,7 +1009,7 @@ export default function App() {
         reasons.push(`${unpaidInvoices.length} فاتورة غير محصلة بإجمالي ${unpaidTotal.toLocaleString()} ج.م`);
       }
       if (openOrUnpaidTickets.length > 0) {
-        reasons.push(`${openOrUnpaidTickets.length} بلاغ صيانة مفتوح أو غير مسدد`);
+        reasons.push(`${openOrUnpaidTickets.length} بلاغ صيانة لم يُغلق أو لم تُصدر فاتورته بعد`);
       }
       setNoticeMessage(
         `لا يمكن حذف الوحدة ${unit.id} (${unit.tenant}) لوجود: ${reasons.join(" و")}؛ يجب تحصيل أو تسوية الفواتير وإغلاق البلاغات أولاً (أو أرشفة العقد السابق بدلاً من الحذف).`
@@ -974,13 +1074,10 @@ export default function App() {
     }
   };
 
+  // إضافة بلاغ صيانة بدون تسعير أو تحديد تعاقدي مسبق (يحدده مسؤول الصيانة)
   const handleAddTicket = async (e) => {
     e.preventDefault();
     if (!newTicket.unitId || !newTicket.title.trim()) return;
-
-    const isPaid = newTicket.billingType === "مدفوع";
-    const feeValue = isPaid ? Number(newTicket.serviceFee) || 0 : 0;
-    const paymentStatusValue = isPaid ? newTicket.paymentStatus : "مدفوع";
 
     const ticketId = `TCK-${Math.floor(200 + Math.random() * 799)}`;
     const ticketRecord = {
@@ -991,43 +1088,24 @@ export default function App() {
       status: "new",
       category: newTicket.category,
       date: "الآن",
-      assignedTo: newTicket.assignedTo.trim() || "فريق الصيانة",
-      billingType: isPaid ? "مدفوع" : "ضمن العقد",
-      serviceFee: feeValue,
-      paymentStatus: paymentStatusValue,
+      assignedTo: newTicket.assignedTo.trim() || "بانتظار توجيه مسؤول الصيانة",
+      billingType: "غير محدد",
+      serviceFee: 0,
+      paymentStatus: "غير محدد",
+      approvalStatus: "غير مطلوب",
+      depositCovered: false,
+      invoiceIssued: false,
+      invoiceId: null,
     };
 
     setTickets((prev) => [ticketRecord, ...prev]);
-
-    let createdInvoiceId = null;
-    if (isPaid && feeValue > 0 && paymentStatusValue === "غير مدفوع") {
-      const matchedUnit = units.find((u) => u.id === ticketRecord.unitId);
-      createdInvoiceId = `INV-SRV-${Math.floor(100 + Math.random() * 899)}`;
-      const today = new Date().toISOString().split("T")[0];
-      const serviceInvoice = {
-        id: createdInvoiceId,
-        unitId: ticketRecord.unitId,
-        tenant: matchedUnit ? matchedUnit.tenant : `وحدة ${ticketRecord.unitId}`,
-        amount: feeValue,
-        type: `صيانة خارج العقد (${ticketRecord.id})`,
-        dueDate: today,
-        status: "قيد الانتظار",
-        paymentDate: "-",
-      };
-      setInvoices((prev) => [serviceInvoice, ...prev]);
-      if (supabase) {
-        await supabase.from("invoices").upsert(mapInvoiceToDb(serviceInvoice));
-      }
-    }
 
     if (supabase) {
       const { error } = await supabase.from("tickets").upsert(mapTicketToDb(ticketRecord));
       setNoticeMessage(
         error
           ? `تم تسجيل البلاغ محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : createdInvoiceId
-            ? `تم إضافة البلاغ المدفوع ${ticketRecord.id} وإصدار فاتورة الصيانة ${createdInvoiceId}؛ لا يمكن إغلاقه قبل الدفع.`
-            : `تم إضافة بلاغ الصيانة ${ticketRecord.id} وحفظه في قاعدة البيانات.`
+          : `تم تسجيل البلاغ ${ticketRecord.id}؛ يمكن لمسؤول الصيانة الآن تحديد هل هو داخل العقد أو خارجه.`
       );
     }
 
@@ -1036,35 +1114,159 @@ export default function App() {
       title: "",
       priority: "متوسط",
       category: "تكييف",
-      assignedTo: "فريق الصيانة",
-      billingType: "ضمن العقد",
-      serviceFee: "",
-      paymentStatus: "مدفوع",
+      assignedTo: "بانتظار توجيه مسؤول الصيانة",
     });
     setShowAddTicketModal(false);
   };
 
-  const handleMarkTicketPaid = async (ticketId) => {
-    const today = new Date().toISOString().split("T")[0];
+  // تحديد مسؤول الصيانة: داخل العقد (من وديعة الصيانة) أو خارج العقد (بمبلغ وإرسال للموافقة)
+  const handleEvaluateTicket = async (ticketId, { billingType, serviceFee, assignedTo }) => {
+    const target = tickets.find((t) => t.id === ticketId);
+    if (!target) return;
 
-    setTickets((prev) =>
-      prev.map((t) => (t.id === ticketId ? { ...t, paymentStatus: "مدفوع" } : t))
-    );
-    setInvoices((prev) =>
-      prev.map((inv) =>
-        inv.type.includes(`(${ticketId})`) ? { ...inv, status: "مدفوع", paymentDate: today } : inv
-      )
-    );
+    const isInside = billingType === "داخل العقد";
+    const feeNum = isInside ? 0 : Math.max(0, Number(serviceFee) || 0);
 
-    if (supabase) {
-      await supabase.from("tickets").update({ payment_status: "مدفوع" }).eq("id", ticketId);
-      await supabase
-        .from("invoices")
-        .update({ status: "مدفوع", payment_date: today })
-        .ilike("type", `%(${ticketId})%`);
+    if (!isInside && feeNum <= 0) {
+      setNoticeMessage(`يرجى إدخال مبلغ الصيانة خارج العقد للبلاغ ${ticketId} قبل إرساله للموافقة.`);
+      return;
     }
 
-    setNoticeMessage(`تم تأكيد دفع رسوم الصيانة للبلاغ ${ticketId}؛ يمكنك الآن نقله إلى "تم الحل".`);
+    const updatedPatch = {
+      billingType,
+      serviceFee: feeNum,
+      assignedTo: assignedTo?.trim() || (isInside ? "فني الصيانة" : "بانتظار موافقة العميل لإرسال الفني"),
+      depositCovered: isInside,
+      approvalStatus: isInside ? "مغطى من وديعة الصيانة" : "بانتظار موافقة العميل",
+      paymentStatus: isInside ? "مسدد من الوديعة" : "بانتظار الموافقة",
+    };
+
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...updatedPatch } : t)));
+
+    if (supabase) {
+      await supabase
+        .from("tickets")
+        .update({
+          billing_type: updatedPatch.billingType,
+          service_fee: updatedPatch.serviceFee,
+          assigned_to: updatedPatch.assignedTo,
+          deposit_covered: updatedPatch.depositCovered,
+          approval_status: updatedPatch.approvalStatus,
+          payment_status: updatedPatch.paymentStatus,
+        })
+        .eq("id", ticketId);
+    }
+
+    setNoticeMessage(
+      isInside
+        ? `تم تحديد البلاغ ${ticketId} كـ «داخل العقد» ويُغطّى من وديعة الصيانة.`
+        : `تم تحديد البلاغ ${ticketId} كـ «خارج العقد» بقيمة ${feeNum.toLocaleString()} ج.م وإرساله للموافقة.`
+    );
+  };
+
+  // تسجيل موافقة المستأجر أو المالك على المبلغ وتوجيه الفني للتنفيذ
+  const handleClientApproveTicket = async (ticketId) => {
+    const target = tickets.find((t) => t.id === ticketId);
+    if (!target) return;
+
+    const updatedPatch = {
+      approvalStatus: "موافق عليه",
+      paymentStatus: "بانتظار إتمام الإصلاح وإصدار الفاتورة",
+      status: "in_progress",
+      assignedTo:
+        target.assignedTo && !target.assignedTo.includes("بانتظار")
+          ? target.assignedTo
+          : "فني الصيانة (تم التوجيه بعد الموافقة)",
+    };
+
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...updatedPatch } : t)));
+
+    if (supabase) {
+      await supabase
+        .from("tickets")
+        .update({
+          approval_status: updatedPatch.approvalStatus,
+          payment_status: updatedPatch.paymentStatus,
+          status: updatedPatch.status,
+          assigned_to: updatedPatch.assignedTo,
+        })
+        .eq("id", ticketId);
+    }
+
+    setNoticeMessage(`تم تسجيل موافقة العميل على البلاغ ${ticketId} وتحويله إلى «قيد التنفيذ» لإرسال الفني.`);
+  };
+
+  // تأكيد أن المشكلة اتحلت + إصدار الفاتورة تلقائياً في حالة الصيانة خارج العقد
+  const handleResolveAndIssueInvoice = async (ticketId) => {
+    const ticket = tickets.find((t) => t.id === ticketId);
+    if (!ticket) return;
+
+    if (ticket.billingType === "غير محدد") {
+      setNoticeMessage(`يجب أولاً تحديد هل البلاغ ${ticketId} داخل العقد أم خارجه.`);
+      return;
+    }
+
+    if (ticket.billingType === "خارج العقد" && ticket.approvalStatus !== "موافق عليه") {
+      setNoticeMessage(`لا يمكن إغلاق البلاغ ${ticketId} أو إصدار فاتورته قبل موافقة العميل على المبلغ.`);
+      return;
+    }
+
+    let issuedInvoiceId = ticket.invoiceId || null;
+
+    if (ticket.billingType === "خارج العقد" && Number(ticket.serviceFee) > 0 && !ticket.invoiceIssued) {
+      const matchedUnit = units.find((u) => u.id === ticket.unitId);
+      const partyName =
+        matchedUnit?.ownershipType === "مالك" && matchedUnit?.isSubleased && matchedUnit?.subtenantName
+          ? `${matchedUnit.subtenantName} (وحدة ${ticket.unitId} - مالك: ${matchedUnit.tenant})`
+          : matchedUnit?.tenant || `وحدة ${ticket.unitId}`;
+
+      issuedInvoiceId = `INV-MNT-${ticket.id}-${Math.floor(10 + Math.random() * 89)}`;
+      const today = new Date().toISOString().split("T")[0];
+
+      const newInv = {
+        id: issuedInvoiceId,
+        unitId: ticket.unitId,
+        tenant: partyName,
+        amount: Number(ticket.serviceFee),
+        type: `صيانة خارج العقد (${ticket.title} - ${ticket.id})`,
+        dueDate: today,
+        status: "قيد الانتظار",
+        paymentDate: "-",
+      };
+
+      setInvoices((prev) => [newInv, ...prev]);
+      if (supabase) {
+        await supabase.from("invoices").upsert(mapInvoiceToDb(newInv));
+      }
+    }
+
+    const updatedTicket = {
+      ...ticket,
+      status: "resolved",
+      invoiceIssued: ticket.billingType === "خارج العقد" ? true : ticket.invoiceIssued,
+      invoiceId: issuedInvoiceId,
+      paymentStatus: ticket.billingType === "داخل العقد" ? "مسدد من الوديعة" : "بانتظار التحصيل",
+    };
+
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? updatedTicket : t)));
+
+    if (supabase) {
+      await supabase
+        .from("tickets")
+        .update({
+          status: updatedTicket.status,
+          invoice_issued: updatedTicket.invoiceIssued,
+          invoice_id: updatedTicket.invoiceId,
+          payment_status: updatedTicket.paymentStatus,
+        })
+        .eq("id", ticketId);
+    }
+
+    setNoticeMessage(
+      issuedInvoiceId
+        ? `تم تأكيد حل المشكلة في البلاغ ${ticketId} وإصدار الفاتورة رقم ${issuedInvoiceId} بقيمة ${Number(ticket.serviceFee).toLocaleString()} ج.م.`
+        : `تم تأكيد حل المشكلة وإغلاق البلاغ ${ticketId} (مغطى من وديعة الصيانة).`
+    );
   };
 
   const handleAddAnnouncement = async (e) => {
@@ -1100,7 +1302,7 @@ export default function App() {
     if (kind === "unit") {
       const unpaidInvoices = invoices.filter((inv) => inv.unitId === id && inv.status !== "مدفوع");
       const openOrUnpaidTickets = tickets.filter(
-        (t) => t.unitId === id && (t.status !== "resolved" || (t.billingType === "مدفوع" && t.paymentStatus !== "مدفوع"))
+        (t) => t.unitId === id && (t.status !== "resolved" || (t.billingType === "خارج العقد" && !t.invoiceIssued))
       );
       if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
         setNoticeMessage(`تم إيقاف حذف ${label} لوجود فواتير غير محصلة أو بلاغات صيانة معلقة.`);
@@ -1143,14 +1345,13 @@ export default function App() {
     const targetTicket = tickets.find((t) => t.id === ticketId);
     if (!targetTicket) return;
 
-    if (
-      newStatus === "resolved" &&
-      targetTicket.billingType === "مدفوع" &&
-      targetTicket.paymentStatus !== "مدفوع"
-    ) {
-      setNoticeMessage(
-        `لا يمكن إغلاق البلاغ ${ticketId} لأن صيانته خارج العقد بقيمة ${Number(targetTicket.serviceFee || 0).toLocaleString()} ج.م ولم يتم تسجيل الدفع بعد.`
-      );
+    if (newStatus === "resolved") {
+      await handleResolveAndIssueInvoice(ticketId);
+      return;
+    }
+
+    if (newStatus === "in_progress" && targetTicket.billingType === "خارج العقد" && targetTicket.approvalStatus !== "موافق عليه") {
+      setNoticeMessage(`يرجى تسجيل موافقة العميل أولاً قبل توجيه الفني لبدء تنفيذ البلاغ ${ticketId}.`);
       return;
     }
 
@@ -1532,7 +1733,7 @@ export default function App() {
                           <div>
                             <p className="text-xs font-semibold text-slate-200">{ticket.title}</p>
                             <p className="text-[10px] text-slate-400 mt-0.5">
-                              الوحدة: {ticket.unitId} • {ticket.billingType === "مدفوع" ? `مدفوع (${ticket.paymentStatus})` : "ضمن العقد"}
+                              الوحدة: {ticket.unitId} • {ticket.billingType}
                             </p>
                           </div>
                           <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-slate-800 text-slate-300 border-slate-700"}`}>
@@ -1554,7 +1755,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-[#00D8F6]" /> دليل الوحدات والملاك والعقود
                   </h2>
-                  <p className="text-xs text-slate-400">حماية المستحقات من الحذف، وحفظ السجل التاريخي للعقود والتأجير على نفس الوحدة</p>
+                  <p className="text-xs text-slate-400">حماية المستحقات من الحذف، وحفظ السجل التاريخي للعقود والتأجير ووديعة الصيانة</p>
                 </div>
                 {perms.canManageUnits && (
                   <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -1579,7 +1780,7 @@ export default function App() {
                         <th className="p-4">رقم الوحدة</th>
                         <th className="p-4">المالك / المستأجر</th>
                         <th className="p-4">الصفة</th>
-                        <th className="p-4">تفاصيل الإيجار / التأجير</th>
+                        <th className="p-4">تفاصيل الإيجار / التأجير / الوديعة</th>
                         <th className="p-4">نهاية العقد</th>
                         <th className="p-4">الحالة</th>
                         <th className="p-4 text-center">إجراء</th>
@@ -1610,19 +1811,20 @@ export default function App() {
                                 {unit.ownershipType}
                               </span>
                             </td>
-                            <td className="p-4 text-slate-300">
+                            <td className="p-4 text-slate-300 space-y-0.5">
                               {isOwner ? (
                                 unit.isSubleased ? (
-                                  <div className="space-y-0.5">
+                                  <>
                                     <p className="text-emerald-400 font-semibold">مؤجر للغير: {unit.subtenantName || "مستأجر فرعي"}</p>
                                     <p className="text-[10px] text-slate-400">قيمة إيجار التأجير: {Number(unit.subleaseRent || 0).toLocaleString()} ج.م</p>
-                                  </div>
+                                  </>
                                 ) : (
                                   <span className="text-slate-400">بدون عقد إيجار (ملك خاص)</span>
                                 )
                               ) : (
-                                <span className="font-bold text-emerald-400">{Number(unit.rent || 0).toLocaleString()} ج.م / شهر</span>
+                                <p className="font-bold text-emerald-400">{Number(unit.rent || 0).toLocaleString()} ج.م / شهر</p>
                               )}
+                              <p className="text-[10px] text-cyan-300">وديعة الصيانة: {Number(unit.maintenanceDeposit || 0).toLocaleString()} ج.م</p>
                             </td>
                             <td className="p-4 text-slate-300">
                               {isOwner ? (unit.isSubleased ? unit.subleaseExpireDate || "-" : "لا يوجد عقد إيجار") : unit.expireDate || "-"}
@@ -1761,7 +1963,9 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-amber-400" /> مركز الصيانة والخدمات الفنية
                   </h2>
-                  <p className="text-xs text-slate-400">الصيانة المدفوعة خارج العقد لا تُغلق إلى «تم الحل» قبل تأكيد الدفع</p>
+                  <p className="text-xs text-slate-400">
+                    مسؤول الصيانة يحدد داخل العقد (وديعة الصيانة) أو خارج العقد (تسعير → موافقة → تنفيذ → تأكيد الحل → إصدار الفاتورة)
+                  </p>
                 </div>
                 {perms.canManageTickets && (
                   <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -1771,7 +1975,7 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <KanbanColumn title="بلاغات جديدة" count={tickets.filter((t) => t.status === "new").length} color="border-rose-500/50 bg-rose-500/5">
+                <KanbanColumn title="بلاغات جديدة / بانتظار التقييم أو الموافقة" count={tickets.filter((t) => t.status === "new").length} color="border-rose-500/50 bg-rose-500/5">
                   {tickets.filter((t) => t.status === "new").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -1779,13 +1983,15 @@ export default function App() {
                       canManageTickets={perms.canManageTickets}
                       canDelete={perms.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
-                      onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
+                      onEvaluate={(payload) => handleEvaluateTicket(ticket.id, payload)}
+                      onApproveClient={() => handleClientApproveTicket(ticket.id)}
+                      onResolveAndInvoice={() => handleResolveAndIssueInvoice(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
                     />
                   ))}
                 </KanbanColumn>
 
-                <KanbanColumn title="قيد التنفيذ" count={tickets.filter((t) => t.status === "in_progress").length} color="border-amber-500/50 bg-amber-500/5">
+                <KanbanColumn title="قيد التنفيذ (إرسال الفني وإتمام الإصلاح)" count={tickets.filter((t) => t.status === "in_progress").length} color="border-amber-500/50 bg-amber-500/5">
                   {tickets.filter((t) => t.status === "in_progress").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -1793,13 +1999,15 @@ export default function App() {
                       canManageTickets={perms.canManageTickets}
                       canDelete={perms.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
-                      onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
+                      onEvaluate={(payload) => handleEvaluateTicket(ticket.id, payload)}
+                      onApproveClient={() => handleClientApproveTicket(ticket.id)}
+                      onResolveAndInvoice={() => handleResolveAndIssueInvoice(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
                     />
                   ))}
                 </KanbanColumn>
 
-                <KanbanColumn title="تم الحل والإغلاق" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
+                <KanbanColumn title="تم الحل وإصدار الفاتورة" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
                   {tickets.filter((t) => t.status === "resolved").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -1807,7 +2015,9 @@ export default function App() {
                       canManageTickets={perms.canManageTickets}
                       canDelete={perms.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
-                      onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
+                      onEvaluate={(payload) => handleEvaluateTicket(ticket.id, payload)}
+                      onApproveClient={() => handleClientApproveTicket(ticket.id)}
+                      onResolveAndInvoice={() => handleResolveAndIssueInvoice(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
                     />
                   ))}
@@ -2192,15 +2402,26 @@ export default function App() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
-              <input
-                required
-                type="text"
-                value={editUnitForm.portalPassword}
-                onChange={(e) => setEditUnitForm({ ...editUnitForm, portalPassword: e.target.value })}
-                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
+                <input
+                  required
+                  type="text"
+                  value={editUnitForm.portalPassword}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, portalPassword: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">رصيد وديعة الصيانة (ج.م)</label>
+                <input
+                  type="number"
+                  value={editUnitForm.maintenanceDeposit}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, maintenanceDeposit: e.target.value })}
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -2401,16 +2622,28 @@ export default function App() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
-              <input
-                required
-                type="text"
-                value={newUnit.portalPassword}
-                onChange={(e) => setNewUnit({ ...newUnit, portalPassword: e.target.value })}
-                placeholder="مثال: Unit@2026"
-                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
+                <input
+                  required
+                  type="text"
+                  value={newUnit.portalPassword}
+                  onChange={(e) => setNewUnit({ ...newUnit, portalPassword: e.target.value })}
+                  placeholder="مثال: Unit@2026"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">وديعة الصيانة (ج.م)</label>
+                <input
+                  type="number"
+                  value={newUnit.maintenanceDeposit}
+                  onChange={(e) => setNewUnit({ ...newUnit, maintenanceDeposit: e.target.value })}
+                  placeholder="10000"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -2532,7 +2765,7 @@ export default function App() {
       )}
 
       {showAddTicketModal && (
-        <Modal title="إضافة بلاغ صيانة جديد" onClose={() => setShowAddTicketModal(false)}>
+        <Modal title="تسجيل بلاغ صيانة (يُقيّم بواسطة مسؤول الصيانة)" onClose={() => setShowAddTicketModal(false)}>
           <form onSubmit={handleAddTicket} className="space-y-4 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -2556,27 +2789,10 @@ export default function App() {
 
             <div>
               <label className="block text-slate-400 mb-1 font-semibold">وصف العطل / البلاغ</label>
-              <input required type="text" placeholder="مثال: إصلاح أو تركيب خارج عقد الصيانة" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              <input required type="text" placeholder="مثال: عطل في التكييف أو تسريب مياه" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-slate-400 mb-1 font-semibold">نوع الصيانة</label>
-                <select
-                  value={newTicket.billingType}
-                  onChange={(e) =>
-                    setNewTicket({
-                      ...newTicket,
-                      billingType: e.target.value,
-                      paymentStatus: e.target.value === "مدفوع" ? "غير مدفوع" : "مدفوع",
-                    })
-                  }
-                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-                >
-                  <option value="ضمن العقد">ضمن عقد الصيانة</option>
-                  <option value="مدفوع">خارج العقد (مدفوع)</option>
-                </select>
-              </div>
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">الأولوية</label>
                 <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
@@ -2585,40 +2801,15 @@ export default function App() {
                   <option value="عاجل">عاجل</option>
                 </select>
               </div>
-            </div>
-
-            {newTicket.billingType === "مدفوع" && (
-              <div className="grid grid-cols-2 gap-3 bg-[#070F1B] p-3 rounded-xl border border-amber-500/30">
-                <div>
-                  <label className="block text-amber-300 mb-1 font-semibold">تكلفة الصيانة (ج.م)</label>
-                  <input
-                    required
-                    type="number"
-                    min="1"
-                    placeholder="1500"
-                    value={newTicket.serviceFee}
-                    onChange={(e) => setNewTicket({ ...newTicket, serviceFee: e.target.value })}
-                    className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-amber-300 mb-1 font-semibold">حالة الدفع</label>
-                  <select
-                    value={newTicket.paymentStatus}
-                    onChange={(e) => setNewTicket({ ...newTicket, paymentStatus: e.target.value })}
-                    className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
-                  >
-                    <option value="غير مدفوع">غير مدفوع (يمنع الإغلاق)</option>
-                    <option value="مدفوع">مدفوع</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الفني المسؤول</label>
+                <input type="text" placeholder="فني التكييف أو يحدده المشرف" value={newTicket.assignedTo} onChange={(e) => setNewTicket({ ...newTicket, assignedTo: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
               </div>
-            )}
-
-            <div>
-              <label className="block text-slate-400 mb-1 font-semibold">الفني المسؤول</label>
-              <input type="text" placeholder="م. أحمد حسن" value={newTicket.assignedTo} onChange={(e) => setNewTicket({ ...newTicket, assignedTo: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
             </div>
+
+            <p className="text-[11px] text-slate-400 bg-[#070F1B] p-2.5 rounded-xl border border-slate-800">
+              يُرحّل البلاغ إلى مسؤول الصيانة لتحديد هل هو داخل العقد (وديعة الصيانة) أم خارجه، وتحديد المبلغ وأخذ الموافقة ثم إصدار الفاتورة بعد الحل.
+            </p>
 
             <div className="pt-2 flex items-center justify-end gap-2">
               <button type="button" onClick={() => setShowAddTicketModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
@@ -2764,11 +2955,33 @@ function KanbanColumn({ title, count, color, children }) {
   );
 }
 
-function TicketCard({ ticket, canManageTickets, canDelete, onMove, onMarkPaid, onDelete }) {
-  const isUnpaidPaidTicket = ticket.billingType === "مدفوع" && ticket.paymentStatus !== "مدفوع";
+function TicketCard({
+  ticket,
+  canManageTickets,
+  canDelete,
+  onMove,
+  onEvaluate,
+  onApproveClient,
+  onResolveAndInvoice,
+  onDelete,
+}) {
+  const [evalBillingType, setEvalBillingType] = useState(
+    ticket.billingType === "خارج العقد" ? "خارج العقد" : "داخل العقد"
+  );
+  const [evalFee, setEvalFee] = useState(ticket.serviceFee ? String(ticket.serviceFee) : "");
+  const [evalTechnician, setEvalTechnician] = useState(
+    ticket.assignedTo && !ticket.assignedTo.includes("بانتظار") ? ticket.assignedTo : "فني الصيانة"
+  );
+
+  const isOutside = ticket.billingType === "خارج العقد";
+  const isWaitingApproval = isOutside && ticket.approvalStatus !== "موافق عليه";
+  const canIssueNow =
+    ticket.status !== "resolved" &&
+    ticket.billingType !== "غير محدد" &&
+    (!isOutside || ticket.approvalStatus === "موافق عليه");
 
   return (
-    <div className="bg-[#0B192C] border border-slate-800 p-3.5 rounded-xl space-y-2 hover:border-[#00D8F6]/50 transition shadow-md">
+    <div className="bg-[#0B192C] border border-slate-800 p-3.5 rounded-xl space-y-2.5 hover:border-[#00D8F6]/50 transition shadow-md text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold text-[#00D8F6]">{ticket.id} • {ticket.unitId}</span>
         <div className="flex items-center gap-1.5">
@@ -2789,27 +3002,110 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onMarkPaid, o
       </div>
 
       <p className="text-xs font-bold text-slate-100">{ticket.title}</p>
-      <p className="text-[10px] text-slate-400">الفني المسؤول: {ticket.assignedTo}</p>
+      <p className="text-[10px] text-slate-400">الفني / التوجيه: {ticket.assignedTo}</p>
 
-      <div className="flex items-center justify-between text-[10px] pt-1">
-        {ticket.billingType === "مدفوع" ? (
-          <span className={`px-2 py-0.5 rounded font-bold border ${isUnpaidPaidTicket ? "bg-rose-500/15 text-rose-300 border-rose-500/30" : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"}`}>
-            خارج العقد: {Number(ticket.serviceFee || 0).toLocaleString()} ج.م ({ticket.paymentStatus})
-          </span>
-        ) : (
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">ضمن عقد الصيانة</span>
+      <div className="bg-[#070F1B] border border-slate-800/90 rounded-lg p-2 space-y-1 text-[10px]">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-400">التبعية التعاقدية:</span>
+          <span className="font-bold text-[#00D8F6]">{ticket.billingType}</span>
+        </div>
+        {ticket.billingType === "داخل العقد" && (
+          <p className="text-emerald-400 font-semibold">مغطى من وديعة الصيانة</p>
         )}
-
-        {canManageTickets && isUnpaidPaidTicket && (
-          <button
-            type="button"
-            onClick={onMarkPaid}
-            className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded font-bold transition"
-          >
-            تأكيد الدفع
-          </button>
+        {isOutside && (
+          <>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">قيمة الصيانة:</span>
+              <span className="font-bold text-amber-300">{Number(ticket.serviceFee || 0).toLocaleString()} ج.م</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">موافقة العميل:</span>
+              <span className={ticket.approvalStatus === "موافق عليه" ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                {ticket.approvalStatus}
+              </span>
+            </div>
+          </>
+        )}
+        {ticket.invoiceId && (
+          <p className="text-cyan-300 font-mono">رقم الفاتورة الصادرة: {ticket.invoiceId}</p>
         )}
       </div>
+
+      {canManageTickets && ticket.status !== "resolved" && (
+        <div className="bg-[#070F1B] border border-slate-800 rounded-lg p-2.5 space-y-2 text-[10px]">
+          <p className="font-bold text-slate-300">تحديد مسؤول الصيانة:</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            <select
+              value={evalBillingType}
+              onChange={(e) => setEvalBillingType(e.target.value)}
+              className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200"
+            >
+              <option value="داخل العقد">داخل العقد (وديعة)</option>
+              <option value="خارج العقد">خارج العقد (بمبلغ)</option>
+            </select>
+            <input
+              type="text"
+              value={evalTechnician}
+              onChange={(e) => setEvalTechnician(e.target.value)}
+              placeholder="اسم الفني"
+              className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200"
+            />
+          </div>
+
+          {evalBillingType === "خارج العقد" && (
+            <input
+              type="number"
+              min="1"
+              value={evalFee}
+              onChange={(e) => setEvalFee(e.target.value)}
+              placeholder="اكتب مبلغ الصيانة خارج العقد (ج.م)"
+              className="w-full bg-[#0B192C] border border-amber-500/40 rounded px-2 py-1 text-slate-200"
+            />
+          )}
+
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <button
+              type="button"
+              onClick={() =>
+                onEvaluate({
+                  billingType: evalBillingType,
+                  serviceFee: evalFee,
+                  assignedTo: evalTechnician,
+                })
+              }
+              className="bg-[#00D8F6]/20 hover:bg-[#00D8F6]/30 text-[#00D8F6] border border-[#00D8F6]/40 px-2.5 py-1 rounded font-bold transition"
+            >
+              حفظ التحديد
+            </button>
+
+            {isWaitingApproval && (
+              <button
+                type="button"
+                onClick={onApproveClient}
+                className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded font-bold inline-flex items-center gap-1 transition"
+              >
+                <ThumbsUp className="w-3 h-3" /> تأكيد موافقة العميل وإرسال الفني
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {canManageTickets && ticket.status !== "resolved" && (
+        <button
+          type="button"
+          disabled={!canIssueNow}
+          onClick={onResolveAndInvoice}
+          className={`w-full py-1.5 rounded-lg text-[10px] font-bold inline-flex items-center justify-center gap-1 transition ${
+            canIssueNow
+              ? "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40"
+              : "bg-slate-800/70 text-slate-500 border border-slate-700 cursor-not-allowed"
+          }`}
+        >
+          <FileCheck2 className="w-3.5 h-3.5" />
+          {isOutside ? "تم حل المشكلة وإصدار الفاتورة" : "تم حل المشكلة وإغلاق البلاغ"}
+        </button>
+      )}
 
       {canManageTickets && (
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
@@ -2824,10 +3120,10 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onMarkPaid, o
             {ticket.status !== "resolved" && (
               <button
                 type="button"
-                disabled={isUnpaidPaidTicket}
+                disabled={!canIssueNow}
                 onClick={() => onMove("resolved")}
-                title={isUnpaidPaidTicket ? "يلزم تأكيد الدفع أولاً لإغلاق البلاغ" : "نقل إلى تم الحل"}
-                className={`px-1 ${isUnpaidPaidTicket ? "text-slate-600 cursor-not-allowed" : "text-emerald-400 hover:underline"}`}
+                title={canIssueNow ? "تأكيد الحل وإصدار الفاتورة إن وجدت" : "يلزم تحديد التبعية وموافقة العميل أولاً"}
+                className={`px-1 ${canIssueNow ? "text-emerald-400 hover:underline" : "text-slate-600 cursor-not-allowed"}`}
               >
                 تم الحل
               </button>
