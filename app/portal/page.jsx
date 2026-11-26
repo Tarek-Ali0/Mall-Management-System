@@ -8,8 +8,6 @@ import {
   Wrench,
   BellRing,
   Plus,
-  CheckCircle2,
-  AlertTriangle,
   Printer,
   X,
   Lock,
@@ -23,139 +21,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 const DEFAULT_MALL_CONFIG = {
   mallName: "مول الماسة 1",
-  floors: [
-    { id: "ground", name: "الدور الأرضي", category: "تجاري (محلات)", unitsCount: 40, notes: "محلات تجارية رئيسية" },
-    { id: "duplex", name: "دور الدوبليكس", category: "دوبليكس تجاري", unitsCount: 20, notes: "ملحق علوي لبعض الوحدات التجارية بالدور الأرضي" },
-    { id: "first", name: "الدور الأول العلوي", category: "إداري", unitsCount: 30, notes: "مكاتب وخدمات" },
-    { id: "second", name: "الدور الثاني", category: "إداري", unitsCount: 30, notes: "وحدات إدارية وخدمات" },
-  ],
 };
-
-const INITIAL_UNITS = [
-  {
-    id: "G-04",
-    tenant: "مطعم كوك اند غروب",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "تجاري",
-    area: "120 م² + دوبليكس",
-    rent: 35000,
-    status: "نشط",
-    expireDate: "2026-12-15",
-    floor: "الدور الأرضي",
-    phone: "01012345678",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 15000,
-  },
-  {
-    id: "F-12",
-    tenant: "مكتب الفرسان للهندسة",
-    ownershipType: "مستأجر",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "إداري",
-    area: "85 م²",
-    rent: 18000,
-    status: "تنبيه تجديد",
-    expireDate: "2026-12-10",
-    floor: "الدور الأول العلوي",
-    phone: "01123456789",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 10000,
-  },
-  {
-    id: "F-08",
-    tenant: "شركة Valict للحلول التقنية",
-    ownershipType: "مالك",
-    isSubleased: false,
-    subtenantName: "",
-    subleaseRent: 0,
-    subleaseExpireDate: "",
-    type: "إداري",
-    area: "150 م²",
-    rent: 0,
-    status: "مملوكة للمالك",
-    expireDate: "",
-    floor: "الدور الأول العلوي",
-    phone: "01099998877",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 20000,
-  },
-  {
-    id: "G-09",
-    tenant: "م. محمود عبد الله (مالك)",
-    ownershipType: "مالك",
-    isSubleased: true,
-    subtenantName: "سوبرماركت الراية",
-    subleaseRent: 65000,
-    subleaseExpireDate: "2027-05-20",
-    type: "تجاري",
-    area: "300 م²",
-    rent: 0,
-    status: "مؤجرة للغير",
-    expireDate: "",
-    floor: "الدور الأرضي",
-    phone: "01234567890",
-    portalPassword: "1234",
-    contractHistory: [],
-    maintenanceDeposit: 25000,
-  },
-];
-
-const INITIAL_INVOICES = [
-  { id: "INV-2026-001", unitId: "G-04", tenant: "مطعم كوك اند غروب", amount: 35000, type: "إيجار شهر نوفمبر", dueDate: "2026-11-05", status: "مدفوع", paymentDate: "2026-11-03" },
-  { id: "INV-2026-002", unitId: "F-12", tenant: "مكتب الفرسان للهندسة", amount: 18000, type: "إيجار شهر نوفمبر", dueDate: "2026-11-05", status: "مدفوع", paymentDate: "2026-11-04" },
-  { id: "INV-2026-004", unitId: "G-09", tenant: "م. محمود عبد الله (مالك)", amount: 65000, type: "رسوم إدارة وتأجير وحدة", dueDate: "2026-11-10", status: "مدفوع", paymentDate: "2026-11-08" },
-];
-
-const INITIAL_TICKETS = [
-  {
-    id: "TCK-101",
-    unitId: "G-04",
-    title: "عطل في التكييف المركزي بالفرع",
-    priority: "عاجل",
-    status: "new",
-    category: "تكييف",
-    date: "منذ ساعتين",
-    assignedTo: "بانتظار توجيه مسؤول الصيانة",
-    billingType: "غير محدد",
-    serviceFee: 0,
-    paymentStatus: "غير محدد",
-    approvalStatus: "غير مطلوب",
-    depositCovered: false,
-    invoiceIssued: false,
-    invoiceId: null,
-  },
-  {
-    id: "TCK-102",
-    unitId: "F-12",
-    title: "تركيب وحدة إنارة إضافية خارج العقد",
-    priority: "متوسط",
-    status: "new",
-    category: "كهرباء",
-    date: "منذ 5 ساعات",
-    assignedTo: "فني الكهرباء (علي)",
-    billingType: "خارج العقد",
-    serviceFee: 1800,
-    paymentStatus: "بانتظار الموافقة",
-    approvalStatus: "بانتظار موافقة العميل",
-    depositCovered: false,
-    invoiceIssued: false,
-    invoiceId: null,
-  },
-];
-
-const INITIAL_ANNOUNCEMENTS = [
-  { id: 1, title: "صيانة دورية للمولدات الكهربائية الاحتياطية", content: "نحيطكم علماً بأنه سيتم إجراء صيانة دورية للمولدات يوم السبت القادم من الساعة 2:00 صباحاً وحتى 4:00 صباحاً.", date: "2026-11-24", priority: "هام", target: "جميع المستأجرين" },
-];
 
 const mapUnitFromDb = (row) => {
   const ownershipType = row.ownership_type || "مستأجر";
@@ -230,17 +96,28 @@ const mapTicketFromDb = (row) => ({
 
 export default function PortalPage() {
   const [mallName, setMallName] = useState(DEFAULT_MALL_CONFIG.mallName);
-  const [units, setUnits] = useState(INITIAL_UNITS);
-  const [invoices, setInvoices] = useState(INITIAL_INVOICES);
-  const [tickets, setTickets] = useState(INITIAL_TICKETS);
-  const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
+  const [units, setUnits] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
 
-  const [selectedUnitId, setSelectedUnitId] = useState(INITIAL_UNITS[0].id);
+  const [selectedUnitId, setSelectedUnitId] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [authenticatedUnitId, setAuthenticatedUnitId] = useState("");
+  const [authenticatedUnitId, setAuthenticatedUnitId] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("mms_portal_unit") || "";
+    }
+    return "";
+  });
 
-  const [activeTab, setActiveTab] = useState("summary");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("mms_portal_tab") || "summary";
+    }
+    return "summary";
+  });
+
   const [notice, setNotice] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
@@ -249,6 +126,13 @@ export default function PortalPage() {
     category: "تكييف",
     priority: "متوسط",
   });
+
+  const handleSelectPortalTab = useCallback((tabName) => {
+    setActiveTab(tabName);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mms_portal_tab", tabName);
+    }
+  }, []);
 
   const loadPortalData = useCallback(async () => {
     if (!supabase) return;
@@ -264,19 +148,21 @@ export default function PortalPage() {
     if (!settingsRes.error && settingsRes.data?.mall_name) {
       setMallName(settingsRes.data.mall_name);
     }
-    if (!unitsRes.error && unitsRes.data?.length > 0) {
-      const mappedUnits = unitsRes.data.map(mapUnitFromDb);
+    if (!unitsRes.error) {
+      const mappedUnits = (unitsRes.data || []).map(mapUnitFromDb);
       setUnits(mappedUnits);
-      setSelectedUnitId((prev) => (mappedUnits.some((u) => u.id === prev) ? prev : mappedUnits[0].id));
+      if (mappedUnits.length > 0) {
+        setSelectedUnitId((prev) => (mappedUnits.some((u) => u.id === prev) ? prev : mappedUnits[0].id));
+      }
     }
-    if (!invoicesRes.error && invoicesRes.data?.length > 0) {
-      setInvoices(invoicesRes.data.map(mapInvoiceFromDb));
+    if (!invoicesRes.error) {
+      setInvoices((invoicesRes.data || []).map(mapInvoiceFromDb));
     }
-    if (!ticketsRes.error && ticketsRes.data?.length > 0) {
-      setTickets(ticketsRes.data.map(mapTicketFromDb));
+    if (!ticketsRes.error) {
+      setTickets((ticketsRes.data || []).map(mapTicketFromDb));
     }
-    if (!announcementsRes.error && announcementsRes.data?.length > 0) {
-      setAnnouncements(announcementsRes.data);
+    if (!announcementsRes.error) {
+      setAnnouncements(announcementsRes.data || []);
     }
   }, []);
 
@@ -319,6 +205,10 @@ export default function PortalPage() {
     setPasswordInput("");
     setActiveTab("summary");
     setAuthenticatedUnitId(target.id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mms_portal_unit", target.id);
+      localStorage.setItem("mms_portal_tab", "summary");
+    }
   };
 
   const handleLogout = () => {
@@ -326,9 +216,13 @@ export default function PortalPage() {
     setPasswordInput("");
     setLoginError("");
     setNotice("");
+    setActiveTab("summary");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("mms_portal_unit");
+      localStorage.removeItem("mms_portal_tab");
+    }
   };
 
-  // تقديم بلاغ صيانة بدون أي تسعير أو تحديد تعاقدي من المستأجر/المالك
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!activeUnit || !ticketForm.title.trim()) return;
@@ -361,7 +255,6 @@ export default function PortalPage() {
     setNotice(`تم إرسال بلاغ الصيانة ${ticketRecord.id} إلى مسؤول الصيانة لتحديد التبعية التعاقدية والمبلغ.`);
   };
 
-  // موافقة المالك أو المستأجر على مبلغ الصيانة خارج العقد لإرسال الفني
   const handleApproveQuote = async (ticketId) => {
     const target = tickets.find((t) => t.id === ticketId);
     if (!target) return;
@@ -415,11 +308,15 @@ export default function PortalPage() {
                 }}
                 className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
               >
-                {units.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.id} — {u.tenant} ({u.ownershipType})
-                  </option>
-                ))}
+                {units.length === 0 ? (
+                  <option value="">لا توجد وحدات مسجلة حالياً</option>
+                ) : (
+                  units.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.id} — {u.tenant} ({u.ownershipType})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -533,7 +430,7 @@ export default function PortalPage() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleSelectPortalTab(tab.id)}
               className={`px-4 py-2 rounded-xl font-bold inline-flex items-center gap-2 border transition ${
                 activeTab === tab.id
                   ? "bg-[#00D8F6] text-slate-950 border-[#00D8F6]"
@@ -719,28 +616,34 @@ export default function PortalPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {unitInvoices.map((inv) => (
-                    <tr key={inv.id}>
-                      <td className="p-3 font-mono text-slate-300">{inv.id}</td>
-                      <td className="p-3 text-slate-100">{inv.type}</td>
-                      <td className="p-3 font-bold text-white">{Number(inv.amount || 0).toLocaleString()} ج.م</td>
-                      <td className="p-3 text-slate-400">{inv.dueDate}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${inv.status === "مدفوع" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="p-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedInvoice(inv)}
-                          className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 px-2.5 py-1 rounded text-[10px] font-semibold inline-flex items-center gap-1"
-                        >
-                          <Printer className="w-3 h-3" /> عرض
-                        </button>
-                      </td>
+                  {unitInvoices.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="p-6 text-center text-slate-500">لا توجد فواتير مسجلة لهذه الوحدة حالياً.</td>
                     </tr>
-                  ))}
+                  ) : (
+                    unitInvoices.map((inv) => (
+                      <tr key={inv.id}>
+                        <td className="p-3 font-mono text-slate-300">{inv.id}</td>
+                        <td className="p-3 text-slate-100">{inv.type}</td>
+                        <td className="p-3 font-bold text-white">{Number(inv.amount || 0).toLocaleString()} ج.م</td>
+                        <td className="p-3 text-slate-400">{inv.dueDate}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${inv.status === "مدفوع" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedInvoice(inv)}
+                            className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 px-2.5 py-1 rounded text-[10px] font-semibold inline-flex items-center gap-1"
+                          >
+                            <Printer className="w-3 h-3" /> عرض
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -749,15 +652,19 @@ export default function PortalPage() {
 
         {activeTab === "announcements" && (
           <div className="space-y-3 text-xs">
-            {announcements.map((a) => (
-              <div key={a.id} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-white text-sm">{a.title}</h3>
-                  <span className="text-[11px] text-slate-400">{a.date}</span>
+            {announcements.length === 0 ? (
+              <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-6 text-center text-slate-500">لا توجد تنبيهات حالياً.</div>
+            ) : (
+              announcements.map((a) => (
+                <div key={a.id} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-white text-sm">{a.title}</h3>
+                    <span className="text-[11px] text-slate-400">{a.date}</span>
+                  </div>
+                  <p className="text-slate-300 leading-relaxed">{a.content}</p>
                 </div>
-                <p className="text-slate-300 leading-relaxed">{a.content}</p>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
       </main>
