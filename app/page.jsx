@@ -55,6 +55,7 @@ const INITIAL_UNITS = [
     expireDate: "2026-12-15",
     floor: "الدور الأرضي",
     phone: "01012345678",
+    portalPassword: "1234",
   },
   {
     id: "F-12",
@@ -71,6 +72,7 @@ const INITIAL_UNITS = [
     expireDate: "2026-12-10",
     floor: "الدور الأول العلوي",
     phone: "01123456789",
+    portalPassword: "1234",
   },
   {
     id: "F-08",
@@ -87,6 +89,7 @@ const INITIAL_UNITS = [
     expireDate: "",
     floor: "الدور الأول العلوي",
     phone: "01099998877",
+    portalPassword: "1234",
   },
   {
     id: "G-09",
@@ -103,6 +106,7 @@ const INITIAL_UNITS = [
     expireDate: "",
     floor: "الدور الأرضي",
     phone: "01234567890",
+    portalPassword: "1234",
   },
   {
     id: "S-02",
@@ -119,6 +123,7 @@ const INITIAL_UNITS = [
     expireDate: "2027-01-15",
     floor: "الدور الأرضي",
     phone: "01055554433",
+    portalPassword: "1234",
   },
   {
     id: "F-05",
@@ -135,6 +140,7 @@ const INITIAL_UNITS = [
     expireDate: "2026-11-30",
     floor: "الدور الثاني",
     phone: "01188887766",
+    portalPassword: "1234",
   },
   {
     id: "S-14",
@@ -151,6 +157,7 @@ const INITIAL_UNITS = [
     expireDate: "2026-12-28",
     floor: "الدور الأرضي",
     phone: "01044443322",
+    portalPassword: "1234",
   },
 ];
 
@@ -201,6 +208,7 @@ const mapUnitToDb = (u) => ({
   expire_date: u.ownershipType === "مالك" ? "" : u.expireDate || "",
   floor: u.floor || "الدور الأرضي",
   phone: u.phone || "",
+  portal_password: u.portalPassword || "1234",
 });
 
 const mapUnitFromDb = (row) => {
@@ -221,6 +229,7 @@ const mapUnitFromDb = (row) => {
     expireDate: ownershipType === "مالك" ? "" : row.expire_date || "",
     floor: row.floor || "الدور الأرضي",
     phone: row.phone || "",
+    portalPassword: row.portal_password || "1234",
   };
 };
 
@@ -315,6 +324,7 @@ export default function App() {
     expireDate: "",
     floor: DEFAULT_MALL_CONFIG.floors[0].name,
     phone: "",
+    portalPassword: "",
   });
 
   const [newInvoice, setNewInvoice] = useState({
@@ -494,6 +504,7 @@ export default function App() {
       rent: isOwner ? 0 : Number(newUnit.rent) || 0,
       expireDate: isOwner ? "" : newUnit.expireDate,
       status: isOwner ? (isSubleased ? "مؤجرة للغير" : "مملوكة للمالك") : "نشط",
+      portalPassword: newUnit.portalPassword.trim() || "1234",
     };
 
     setUnits((prev) => [...prev, unitRecord]);
@@ -521,6 +532,7 @@ export default function App() {
       expireDate: "",
       floor: mallConfig.floors[0]?.name || "الدور الأرضي",
       phone: "",
+      portalPassword: "",
     });
     setShowAddUnitModal(false);
   };
@@ -1076,6 +1088,7 @@ export default function App() {
                             <td className="p-4">
                               <p className="font-bold text-slate-100">{unit.tenant}</p>
                               <p className="text-[10px] text-slate-400">{unit.phone}</p>
+                              <p className="text-[10px] text-[#00D8F6] font-mono mt-0.5">باسورد الدخول: {unit.portalPassword || "1234"}</p>
                             </td>
                             <td className="p-4">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isOwner ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30" : "bg-cyan-500/15 text-cyan-300 border-cyan-500/30"}`}>
@@ -1465,6 +1478,18 @@ export default function App() {
                 <label className="block text-slate-400 mb-1 font-semibold">رقم التواصل</label>
                 <input type="text" value={newUnit.phone} onChange={(e) => setNewUnit({ ...newUnit, phone: e.target.value })} placeholder="010..." className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">كلمة مرور البوابة للوحدة</label>
+              <input
+                required
+                type="text"
+                value={newUnit.portalPassword}
+                onChange={(e) => setNewUnit({ ...newUnit, portalPassword: e.target.value })}
+                placeholder="مثال: Unit@2026"
+                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+              />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
