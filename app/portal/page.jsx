@@ -15,14 +15,15 @@ import {
 import { supabase } from "../../lib/supabaseClient";
 
 const FALLBACK_UNITS = [
-  { id: "G-04", tenant: "مطعم كوك اند غروب", ownershipType: "مستأجر", isSubleased: false, subtenantName: "", subleaseRent: 0, subleaseExpireDate: "", type: "تجاري", area: "120 م² + دوبليكس", rent: 35000, status: "نشط", expireDate: "2026-12-15", floor: "الدور الأرضي", phone: "01012345678" },
-  { id: "F-08", tenant: "شركة Valict للحلول التقنية", ownershipType: "مالك", isSubleased: false, subtenantName: "", subleaseRent: 0, subleaseExpireDate: "", type: "إداري", area: "150 م²", rent: 0, status: "مملوكة للمالك", expireDate: "", floor: "الدور الأول العلوي", phone: "01099998877" },
-  { id: "G-09", tenant: "م. محمود عبد الله (مالك)", ownershipType: "مالك", isSubleased: true, subtenantName: "سوبرماركت الراية", subleaseRent: 65000, subleaseExpireDate: "2027-05-20", type: "تجاري", area: "300 م²", rent: 0, status: "مؤجرة للغير", expireDate: "", floor: "الدور الأرضي", phone: "01234567890" },
+  { id: "G-04", tenant: "مطعم كوك اند غروب", ownershipType: "مستأجر", isSubleased: false, subtenantName: "", subleaseRent: 0, subleaseExpireDate: "", type: "تجاري", area: "120 م² + دوبليكس", rent: 35000, status: "نشط", expireDate: "2026-12-15", floor: "الدور الأرضي", phone: "01012345678", portalPassword: "1234" },
+  { id: "F-08", tenant: "شركة Valict للحلول التقنية", ownershipType: "مالك", isSubleased: false, subtenantName: "", subleaseRent: 0, subleaseExpireDate: "", type: "إداري", area: "150 م²", rent: 0, status: "مملوكة للمالك", expireDate: "", floor: "الدور الأول العلوي", phone: "01099998877", portalPassword: "1234" },
+  { id: "G-09", tenant: "م. محمود عبد الله (مالك)", ownershipType: "مالك", isSubleased: true, subtenantName: "سوبرماركت الراية", subleaseRent: 65000, subleaseExpireDate: "2027-05-20", type: "تجاري", area: "300 م²", rent: 0, status: "مؤجرة للغير", expireDate: "", floor: "الدور الأرضي", phone: "01234567890", portalPassword: "1234" },
 ];
 
 export default function UnitPortalPage() {
   const [units, setUnits] = useState(FALLBACK_UNITS);
   const [unitCodeInput, setUnitCodeInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
   const [verifiedUnitId, setVerifiedUnitId] = useState("");
   const [loginError, setLoginError] = useState("");
 
@@ -65,6 +66,7 @@ export default function UnitPortalPage() {
           expireDate: row.expire_date || "",
           floor: row.floor || "الدور الأرضي",
           phone: row.phone || "",
+          portalPassword: row.portal_password || "1234",
         }))
       );
     }
@@ -118,18 +120,25 @@ export default function UnitPortalPage() {
   const handleEnterUnit = (e) => {
     e.preventDefault();
     const code = unitCodeInput.trim();
-    const matched = units.find((u) => u.id.toLowerCase() === code.toLowerCase());
+    const pass = passwordInput;
+    const matched = units.find(
+      (u) =>
+        u.id.toLowerCase() === code.toLowerCase() &&
+        String(u.portalPassword || "1234") === pass
+    );
     if (!matched) {
-      setLoginError("كود الوحدة غير صحيح أو غير مسجل في النظام.");
+      setLoginError("كود الوحدة أو كلمة المرور غير صحيحة.");
       return;
     }
     setLoginError("");
     setVerifiedUnitId(matched.id);
+    setPasswordInput("");
   };
 
   const handleLogoutUnit = () => {
     setVerifiedUnitId("");
     setUnitCodeInput("");
+    setPasswordInput("");
     setStatusNote("");
   };
 
@@ -230,7 +239,7 @@ export default function UnitPortalPage() {
               </div>
               <div>
                 <h1 className="text-base font-black text-white">بوابة المالك والمستأجر</h1>
-                <p className="text-[11px] text-slate-400">أدخل كود الوحدة المخصص لك فقط</p>
+                <p className="text-[11px] text-slate-400">أدخل كود الوحدة وكلمة المرور الخاصة بها</p>
               </div>
             </div>
             <Link href="/" className="text-xs text-slate-400 hover:text-white inline-flex items-center gap-1">
@@ -247,6 +256,18 @@ export default function UnitPortalPage() {
                 value={unitCodeInput}
                 onChange={(e) => setUnitCodeInput(e.target.value)}
                 placeholder="مثال: G-04 أو F-08"
+                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-300 mb-1.5 font-semibold">كلمة المرور</label>
+              <input
+                required
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="أدخل كلمة مرور الوحدة"
                 className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
               />
             </div>
