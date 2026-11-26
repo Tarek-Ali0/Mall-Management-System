@@ -8,6 +8,7 @@ import {
   CreditCard,
   Wrench,
   BellRing,
+  Settings,
   Search,
   Plus,
   CheckCircle2,
@@ -24,8 +25,19 @@ import {
   Trash2,
   UserCheck,
   ExternalLink,
+  Save,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+
+const DEFAULT_MALL_CONFIG = {
+  mallName: "مول الفيوم الجديدة",
+  floors: [
+    { id: "ground", name: "الدور الأرضي", category: "تجاري (محلات)", unitsCount: 40, notes: "محلات تجارية رئيسية" },
+    { id: "duplex", name: "دور الدوبليكس", category: "دوبليكس تجاري", unitsCount: 20, notes: "ملحق علوي لبعض الوحدات التجارية بالدور الأرضي" },
+    { id: "first", name: "الدور الأول العلوي", category: "إداري", unitsCount: 30, notes: "مكاتب وخدمات" },
+    { id: "second", name: "الدور الثاني", category: "إداري", unitsCount: 30, notes: "وحدات إدارية وخدمات" },
+  ],
+};
 
 const INITIAL_UNITS = [
   {
@@ -37,7 +49,7 @@ const INITIAL_UNITS = [
     subleaseRent: 0,
     subleaseExpireDate: "",
     type: "تجاري",
-    area: "120 م²",
+    area: "120 م² + دوبليكس",
     rent: 35000,
     status: "نشط",
     expireDate: "2026-12-15",
@@ -57,7 +69,7 @@ const INITIAL_UNITS = [
     rent: 18000,
     status: "تنبيه تجديد",
     expireDate: "2026-12-10",
-    floor: "الدور الأول",
+    floor: "الدور الأول العلوي",
     phone: "01123456789",
   },
   {
@@ -73,7 +85,7 @@ const INITIAL_UNITS = [
     rent: 0,
     status: "مملوكة للمالك",
     expireDate: "",
-    floor: "الدور الأول",
+    floor: "الدور الأول العلوي",
     phone: "01099998877",
   },
   {
@@ -116,12 +128,12 @@ const INITIAL_UNITS = [
     subtenantName: "",
     subleaseRent: 0,
     subleaseExpireDate: "",
-    type: "عيادات",
+    type: "إداري",
     area: "65 م²",
     rent: 15000,
     status: "متأخر في السداد",
     expireDate: "2026-11-30",
-    floor: "الدور الأول",
+    floor: "الدور الثاني",
     phone: "01188887766",
   },
   {
@@ -132,7 +144,7 @@ const INITIAL_UNITS = [
     subtenantName: "",
     subleaseRent: 0,
     subleaseExpireDate: "",
-    type: "مطاعم وكافيهات",
+    type: "تجاري",
     area: "110 م²",
     rent: 32000,
     status: "نشط",
@@ -162,40 +174,17 @@ const INITIAL_ANNOUNCEMENTS = [
   { id: 2, title: "مواعيد العمل الشتوية الخاصة بالمول", content: "تم تحديث مواعيد فتح وإغلاق أبواب المول الرئيسية لتكون من الساعة 9:00 صباحاً وحتى 11:00 مساءً.", date: "2026-11-20", priority: "عادي", target: "القطاع التجاري" },
 ];
 
-const ROLES_CONFIG = {
-  admin: {
-    label: "مدير النظام",
-    badge: "Super Admin",
-    canViewBilling: true,
-    canManageBilling: true,
-    canManageUnits: true,
-    canManageTickets: true,
-    canDelete: true,
-    canManageAnnouncements: true,
-  },
-  finance: {
-    label: "محاسب / تحصيل",
-    badge: "Finance Role",
-    canViewBilling: true,
-    canManageBilling: true,
-    canManageUnits: false,
-    canManageTickets: false,
-    canDelete: false,
-    canManageAnnouncements: false,
-  },
-  maintenance: {
-    label: "مسؤول صيانة",
-    badge: "Maintenance Role",
-    canViewBilling: false,
-    canManageBilling: false,
-    canManageUnits: false,
-    canManageTickets: true,
-    canDelete: false,
-    canManageAnnouncements: false,
-  },
+const ADMIN_PERMISSIONS = {
+  label: "إدارة المول",
+  badge: "Admin Access",
+  canViewBilling: true,
+  canManageBilling: true,
+  canManageUnits: true,
+  canManageTickets: true,
+  canDelete: true,
+  canManageAnnouncements: true,
+  canManageSettings: true,
 };
-
-const TOTAL_MALL_UNITS = 120;
 
 const mapUnitToDb = (u) => ({
   id: u.id,
@@ -286,13 +275,15 @@ const mapTicketFromDb = (row) => ({
 });
 
 export default function App() {
-  const [role, setRole] = useState("admin");
-  const currentRole = ROLES_CONFIG[role] || ROLES_CONFIG.admin;
+  const currentRole = ADMIN_PERMISSIONS;
 
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [noticeMessage, setNoticeMessage] = useState("");
   const [dbConnected, setDbConnected] = useState(false);
+
+  const [mallConfig, setMallConfig] = useState(DEFAULT_MALL_CONFIG);
+  const [draftConfig, setDraftConfig] = useState(DEFAULT_MALL_CONFIG);
 
   const [units, setUnits] = useState(INITIAL_UNITS);
   const [invoices, setInvoices] = useState(INITIAL_INVOICES);
@@ -322,7 +313,7 @@ export default function App() {
     area: "",
     rent: "",
     expireDate: "",
-    floor: "الدور الأرضي",
+    floor: DEFAULT_MALL_CONFIG.floors[0].name,
     phone: "",
   });
 
@@ -352,16 +343,11 @@ export default function App() {
     target: "جميع المستأجرين",
   });
 
-  useEffect(() => {
-    if (role === "maintenance" && activeTab === "billing") {
-      setActiveTab("maintenance");
-    }
-  }, [role, activeTab]);
-
   const loadFromSupabase = useCallback(async () => {
     if (!supabase) return;
 
-    const [unitsRes, invoicesRes, ticketsRes, announcementsRes] = await Promise.all([
+    const [settingsRes, unitsRes, invoicesRes, ticketsRes, announcementsRes] = await Promise.all([
+      supabase.from("mall_settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("units").select("*"),
       supabase.from("invoices").select("*"),
       supabase.from("tickets").select("*"),
@@ -374,6 +360,15 @@ export default function App() {
     }
 
     setDbConnected(true);
+
+    if (!settingsRes.error && settingsRes.data?.floors) {
+      const loadedConfig = {
+        mallName: settingsRes.data.mall_name || DEFAULT_MALL_CONFIG.mallName,
+        floors: settingsRes.data.floors,
+      };
+      setMallConfig(loadedConfig);
+      setDraftConfig(loadedConfig);
+    }
 
     if (unitsRes.data.length === 0) {
       await supabase.from("units").insert(INITIAL_UNITS.map(mapUnitToDb));
@@ -408,9 +403,14 @@ export default function App() {
     loadFromSupabase();
   }, [loadFromSupabase]);
 
+  const totalConfiguredUnits = useMemo(() => {
+    const sum = mallConfig.floors.reduce((acc, f) => acc + (Number(f.unitsCount) || 0), 0);
+    return sum > 0 ? sum : 120;
+  }, [mallConfig]);
+
   const dynamicKpis = useMemo(() => {
     const occupiedCount = units.length;
-    const occupancyRate = ((occupiedCount / TOTAL_MALL_UNITS) * 100).toFixed(1);
+    const occupancyRate = ((occupiedCount / totalConfiguredUnits) * 100).toFixed(1);
 
     const totalBilled = invoices.reduce((sum, inv) => sum + inv.amount, 0);
     const totalCollected = invoices.filter((i) => i.status === "مدفوع").reduce((sum, inv) => sum + inv.amount, 0);
@@ -425,11 +425,58 @@ export default function App() {
     ).length;
 
     return { occupiedCount, occupancyRate, totalBilled, totalCollected, totalPending, openTicketsCount, expiringLeasesCount };
-  }, [units, invoices, tickets]);
+  }, [units, invoices, tickets, totalConfiguredUnits]);
+
+  const handleSaveSettings = async (e) => {
+    e.preventDefault();
+    const cleanedFloors = draftConfig.floors.map((f) => ({
+      ...f,
+      name: f.name.trim() || "دور",
+      unitsCount: Math.max(0, Number(f.unitsCount) || 0),
+    }));
+    const updatedConfig = {
+      mallName: draftConfig.mallName.trim() || DEFAULT_MALL_CONFIG.mallName,
+      floors: cleanedFloors,
+    };
+
+    setMallConfig(updatedConfig);
+    setDraftConfig(updatedConfig);
+
+    if (supabase) {
+      const { error } = await supabase.from("mall_settings").upsert({
+        id: 1,
+        mall_name: updatedConfig.mallName,
+        floors: updatedConfig.floors,
+        updated_at: new Date().toISOString(),
+      });
+      setNoticeMessage(
+        error
+          ? `تم حفظ الإعدادات محلياً لكن فشل حفظها في قاعدة البيانات: ${error.message}`
+          : "تم حفظ إعدادات المول والأدوار وعدد الوحدات لكل دور بنجاح."
+      );
+    } else {
+      setNoticeMessage("تم تحديث إعدادات المول.");
+    }
+  };
+
+  const handleAddFloorRow = () => {
+    setDraftConfig((prev) => ({
+      ...prev,
+      floors: [
+        ...prev.floors,
+        {
+          id: `floor-${Date.now()}`,
+          name: `دور جديد ${prev.floors.length + 1}`,
+          category: "إداري",
+          unitsCount: 20,
+          notes: "",
+        },
+      ],
+    }));
+  };
 
   const handleAddUnit = async (e) => {
     e.preventDefault();
-    if (!currentRole.canManageUnits) return;
     if (!newUnit.id.trim() || !newUnit.tenant.trim()) return;
 
     const isOwner = newUnit.ownershipType === "مالك";
@@ -458,8 +505,6 @@ export default function App() {
           ? `تمت الإضافة محلياً لكن حدث خطأ في حفظ قاعدة البيانات: ${error.message}`
           : `تم حفظ الوحدة ${unitRecord.id} (${unitRecord.ownershipType}) في قاعدة البيانات بنجاح.`
       );
-    } else {
-      setNoticeMessage(`تمت إضافة الوحدة ${unitRecord.id} (وضع محلي مؤقت).`);
     }
 
     setNewUnit({
@@ -474,7 +519,7 @@ export default function App() {
       area: "",
       rent: "",
       expireDate: "",
-      floor: "الدور الأرضي",
+      floor: mallConfig.floors[0]?.name || "الدور الأرضي",
       phone: "",
     });
     setShowAddUnitModal(false);
@@ -482,7 +527,6 @@ export default function App() {
 
   const handleAddInvoice = async (e) => {
     e.preventDefault();
-    if (!currentRole.canManageBilling) return;
     const amountNum = Number(newInvoice.amount);
     if (!newInvoice.unitId || !amountNum || amountNum <= 0) return;
 
@@ -511,8 +555,6 @@ export default function App() {
           ? `تم إنشاء الفاتورة محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
           : `تم إنشاء الفاتورة ${invoiceRecord.id} للوحدة ${invoiceRecord.unitId} وحفظها بنجاح.`
       );
-    } else {
-      setNoticeMessage(`تم إنشاء الفاتورة ${invoiceRecord.id} (وضع محلي مؤقت).`);
     }
 
     setNewInvoice({ unitId: units[0]?.id || "G-04", amount: "", type: "إيجار شهري", dueDate: "2026-12-05", status: "قيد الانتظار" });
@@ -520,7 +562,6 @@ export default function App() {
   };
 
   const handlePayInvoice = async (invoiceId) => {
-    if (!currentRole.canManageBilling) return;
     const today = new Date().toISOString().split("T")[0];
     setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: "مدفوع", paymentDate: today } : inv)));
 
@@ -540,7 +581,6 @@ export default function App() {
 
   const handleAddTicket = async (e) => {
     e.preventDefault();
-    if (!currentRole.canManageTickets) return;
     if (!newTicket.unitId || !newTicket.title.trim()) return;
 
     const isPaid = newTicket.billingType === "مدفوع";
@@ -594,8 +634,6 @@ export default function App() {
             ? `تم إضافة البلاغ المدفوع ${ticketRecord.id} وإصدار فاتورة الصيانة ${createdInvoiceId}؛ لا يمكن إغلاقه قبل الدفع.`
             : `تم إضافة بلاغ الصيانة ${ticketRecord.id} وحفظه في قاعدة البيانات.`
       );
-    } else {
-      setNoticeMessage(`تم إضافة بلاغ الصيانة ${ticketRecord.id} (وضع محلي مؤقت).`);
     }
 
     setNewTicket({
@@ -612,7 +650,6 @@ export default function App() {
   };
 
   const handleMarkTicketPaid = async (ticketId) => {
-    if (!currentRole.canManageTickets && !currentRole.canManageBilling) return;
     const today = new Date().toISOString().split("T")[0];
 
     setTickets((prev) =>
@@ -637,7 +674,6 @@ export default function App() {
 
   const handleAddAnnouncement = async (e) => {
     e.preventDefault();
-    if (!currentRole.canManageAnnouncements) return;
     if (!newAnnouncement.title.trim() || !newAnnouncement.content.trim()) return;
 
     const announcementRecord = {
@@ -662,7 +698,7 @@ export default function App() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget || !currentRole.canDelete) return;
+    if (!deleteTarget) return;
     const { kind, id, label } = deleteTarget;
     setDeleteTarget(null);
 
@@ -692,13 +728,10 @@ export default function App() {
           ? `تم الحذف من العرض لكن تعذر الحذف من قاعدة البيانات: ${error.message}`
           : `تم حذف ${label} نهائياً من قاعدة البيانات.`
       );
-    } else {
-      setNoticeMessage(`تم حذف ${label} من العرض الحالي.`);
     }
   };
 
   const moveTicket = async (ticketId, newStatus) => {
-    if (!currentRole.canManageTickets) return;
     const targetTicket = tickets.find((t) => t.id === ticketId);
     if (!targetTicket) return;
 
@@ -749,6 +782,11 @@ export default function App() {
     });
   }, [invoices, searchQuery, invoiceFilter]);
 
+  const unitFilterOptions = useMemo(() => {
+    const dynamicFloorNames = mallConfig.floors.map((f) => f.name);
+    return ["الكل", "ملاك", "مستأجرون", "مؤجرة للغير", ...dynamicFloorNames, "تنبيهات"];
+  }, [mallConfig]);
+
   return (
     <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 text-right flex flex-col md:flex-row selection:bg-[#00D8F6] selection:text-slate-950 font-sans">
       <aside className="w-full md:w-72 bg-[#0B192C] border-b md:border-b-0 md:border-l border-slate-800 flex flex-col justify-between shrink-0">
@@ -772,7 +810,7 @@ export default function App() {
             <div className="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
               <span className="flex items-center gap-1.5 text-slate-300 font-semibold">
                 <Building2 className="w-3.5 h-3.5 text-[#00D8F6]" />
-                مول الفيوم الجديدة
+                {mallConfig.mallName}
               </span>
               <span
                 className={`w-2.5 h-2.5 rounded-full ${dbConnected ? "bg-emerald-400" : "bg-amber-400"}`}
@@ -784,16 +822,14 @@ export default function App() {
           <nav className="p-4 space-y-1.5">
             <NavItem icon={<LayoutDashboard className="w-5 h-5" />} label="لوحة التحكم الرئيسية" active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
             <NavItem icon={<Building2 className="w-5 h-5" />} label="الوحدات والملاك والعقود" active={activeTab === "units"} onClick={() => setActiveTab("units")} badge={units.length} />
-            {currentRole.canViewBilling && (
-              <NavItem
-                icon={<CreditCard className="w-5 h-5" />}
-                label="التحصيل والفواتير"
-                active={activeTab === "billing"}
-                onClick={() => setActiveTab("billing")}
-                badge={invoices.filter((i) => i.status === "متأخر").length}
-                badgeColor="bg-rose-500/20 text-rose-400 border-rose-500/30"
-              />
-            )}
+            <NavItem
+              icon={<CreditCard className="w-5 h-5" />}
+              label="التحصيل والفواتير"
+              active={activeTab === "billing"}
+              onClick={() => setActiveTab("billing")}
+              badge={invoices.filter((i) => i.status === "متأخر").length}
+              badgeColor="bg-rose-500/20 text-rose-400 border-rose-500/30"
+            />
             <NavItem
               icon={<Wrench className="w-5 h-5" />}
               label="مركز الصيانة والخدمات"
@@ -803,6 +839,7 @@ export default function App() {
               badgeColor="bg-amber-500/20 text-amber-400 border-amber-500/30"
             />
             <NavItem icon={<BellRing className="w-5 h-5" />} label="التنبيهات والإعلانات" active={activeTab === "announcements"} onClick={() => setActiveTab("announcements")} />
+            <NavItem icon={<Settings className="w-5 h-5" />} label="الإعدادات" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
           </nav>
 
           <div className="px-4 pb-4">
@@ -811,7 +848,7 @@ export default function App() {
               className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold bg-[#070F1B] hover:bg-slate-800 text-[#00D8F6] border border-[#00D8F6]/30 transition"
             >
               <span className="flex items-center gap-2">
-                <UserCheck className="w-4 h-4" /> واجهة المالك / المستأجر
+                <UserCheck className="w-4 h-4" /> دخول المالك / المستأجر
               </span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
@@ -831,7 +868,7 @@ export default function App() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <header className="min-h-16 bg-[#0B192C]/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-10">
-          <div className="relative w-full sm:max-w-sm">
+          <div className="relative w-full sm:max-w-md">
             <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -842,35 +879,20 @@ export default function App() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mr-auto sm:mr-0">
-            <select
-              aria-label="تغيير صلاحية المستخدم"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="bg-[#070F1B] border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-[#00D8F6] font-bold focus:outline-none focus:border-[#00D8F6]"
-            >
-              <option value="admin">الصلاحية: مدير النظام</option>
-              <option value="finance">الصلاحية: محاسب / تحصيل</option>
-              <option value="maintenance">الصلاحية: مسؤول صيانة</option>
-            </select>
+          <div className="flex items-center gap-2.5 mr-auto sm:mr-0">
+            <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+              <Plus className="w-4 h-4" /> وحدة جديدة
+            </button>
 
-            {currentRole.canManageUnits && (
-              <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-2 rounded-lg text-xs flex items-center gap-1.5 hover:brightness-110 transition">
-                <Plus className="w-4 h-4" /> وحدة جديدة
-              </button>
-            )}
+            <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition">
+              <Send className="w-3.5 h-3.5 text-[#00D8F6]" /> إرسال تنبيه
+            </button>
 
-            {currentRole.canManageAnnouncements && (
-              <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition">
-                <Send className="w-3.5 h-3.5 text-[#00D8F6]" /> إرسال تنبيه
-              </button>
-            )}
+            <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
 
-            <div className="hidden lg:flex items-center gap-2 pr-2 border-r border-slate-800">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white border border-white/10">
-                {currentRole.label.slice(0, 2)}
-              </div>
-              <div className="text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white border border-white/10">إم</div>
+              <div className="hidden lg:block text-xs">
                 <p className="font-semibold text-slate-200">{currentRole.label}</p>
                 <p className="text-[10px] text-[#00D8F6]">{currentRole.badge}</p>
               </div>
@@ -894,7 +916,7 @@ export default function App() {
                     <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00D8F6] bg-[#00D8F6]/10 px-2.5 py-0.5 rounded-full border border-[#00D8F6]/20 mb-2">
                       <Sparkles className="w-3 h-3" /> نظام الإدارة التشغيلي الموحد
                     </span>
-                    <h2 className="text-2xl font-black text-white">لوحة تحكم مول الفيوم الجديدة</h2>
+                    <h2 className="text-2xl font-black text-white">لوحة تحكم {mallConfig.mallName}</h2>
                     <p className="text-slate-300 text-xs mt-1 max-w-xl">
                       متابعة لحظية للأداء المالي، نسبة الإشغال، تذاكر الصيانة، الملاك والمستأجرين عبر منصة Valict.
                     </p>
@@ -913,21 +935,19 @@ export default function App() {
                 <KpiCard
                   title="إجمالي الوحدات والإشغال"
                   value={`${dynamicKpis.occupancyRate}%`}
-                  subtext={`${dynamicKpis.occupiedCount} وحدة مسجلة من أصل ${TOTAL_MALL_UNITS}`}
+                  subtext={`${dynamicKpis.occupiedCount} مسجلة من أصل ${totalConfiguredUnits} وحدة`}
                   icon={<Building2 className="w-6 h-6 text-[#00D8F6]" />}
                   badge="تحديث لحظي"
                   badgeType="success"
                 />
-                {currentRole.canViewBilling && (
-                  <KpiCard
-                    title="تحصيل الفواتير (الشهر الحالي)"
-                    value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
-                    subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
-                    icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
-                    badge={`متبقي ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
-                    badgeType="warning"
-                  />
-                )}
+                <KpiCard
+                  title="تحصيل الفواتير (الشهر الحالي)"
+                  value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
+                  subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
+                  icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
+                  badge={`متبقي ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
+                  badgeType="warning"
+                />
                 <KpiCard
                   title="طلبات الصيانة المفتوحة"
                   value={`${dynamicKpis.openTicketsCount} طلبات`}
@@ -947,41 +967,39 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {currentRole.canViewBilling && (
-                  <div className="lg:col-span-2 bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                      <div>
-                        <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-                          <TrendingUp className="w-4 h-4 text-[#00D8F6]" />
-                          تحليل التدفق النقدي والتحصيل الشهري
-                        </h3>
-                        <p className="text-[11px] text-slate-400">مقارنة التحصيل الشهري خلال 6 أشهر</p>
-                      </div>
-                      <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700">بالجنيه المصري</span>
+                <div className="lg:col-span-2 bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-[#00D8F6]" />
+                        تحليل التدفق النقدي والتحصيل الشهري
+                      </h3>
+                      <p className="text-[11px] text-slate-400">مقارنة التحصيل الشهري خلال 6 أشهر</p>
                     </div>
-
-                    <div className="grid grid-cols-6 gap-2 sm:gap-3 pt-4 px-1 items-end h-52">
-                      {[
-                        { month: "يونيو", amount: 410 },
-                        { month: "يوليو", amount: 430 },
-                        { month: "أغسطس", amount: 460 },
-                        { month: "سبتمبر", amount: 440 },
-                        { month: "أكتوبر", amount: 490 },
-                        { month: "نوفمبر", amount: Math.round(dynamicKpis.totalCollected / 1000) },
-                      ].map((item) => (
-                        <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end">
-                          <span className="text-[10px] text-slate-300 font-bold">{item.amount}k</span>
-                          <div className="w-full max-w-[38px] bg-slate-800/90 rounded-t-lg h-36 flex items-end overflow-hidden">
-                            <div className="w-full bg-gradient-to-t from-blue-700 to-[#00D8F6] rounded-t-lg" style={{ height: `${Math.min(100, Math.max(15, (item.amount / 550) * 100))}%` }}></div>
-                          </div>
-                          <span className="text-[11px] text-slate-400 font-medium">{item.month}</span>
-                        </div>
-                      ))}
-                    </div>
+                    <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700">بالجنيه المصري</span>
                   </div>
-                )}
 
-                <div className={`${currentRole.canViewBilling ? "" : "lg:col-span-3"} space-y-4`}>
+                  <div className="grid grid-cols-6 gap-2 sm:gap-3 pt-4 px-1 items-end h-52">
+                    {[
+                      { month: "يونيو", amount: 410 },
+                      { month: "يوليو", amount: 430 },
+                      { month: "أغسطس", amount: 460 },
+                      { month: "سبتمبر", amount: 440 },
+                      { month: "أكتوبر", amount: 490 },
+                      { month: "نوفمبر", amount: Math.round(dynamicKpis.totalCollected / 1000) },
+                    ].map((item) => (
+                      <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end">
+                        <span className="text-[10px] text-slate-300 font-bold">{item.amount}k</span>
+                        <div className="w-full max-w-[38px] bg-slate-800/90 rounded-t-lg h-36 flex items-end overflow-hidden">
+                          <div className="w-full bg-gradient-to-t from-blue-700 to-[#00D8F6] rounded-t-lg" style={{ height: `${Math.min(100, Math.max(15, (item.amount / 550) * 100))}%` }}></div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium">{item.month}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
                   <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
                     <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
                       <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
@@ -1019,15 +1037,13 @@ export default function App() {
                   </h2>
                   <p className="text-xs text-slate-400">التمييز بين الملاك والمستأجرين وتأجير المالك لوحدته للغير</p>
                 </div>
-                {currentRole.canManageUnits && (
-                  <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
-                    <Plus className="w-4 h-4" /> إضافة وحدة جديدة
-                  </button>
-                )}
+                <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                  <Plus className="w-4 h-4" /> إضافة وحدة جديدة
+                </button>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                {["الكل", "ملاك", "مستأجرون", "مؤجرة للغير", "الدور الأرضي", "الدور الأول", "تنبيهات"].map((filter) => (
+                {unitFilterOptions.map((filter) => (
                   <button key={filter} type="button" onClick={() => setUnitFilter(filter)} className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition ${unitFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold border-[#00D8F6]" : "bg-[#0B192C] text-slate-300 border-slate-800 hover:border-slate-700"}`}>
                     {filter === "تنبيهات" ? "تنبيهات التجديد" : filter}
                   </button>
@@ -1045,7 +1061,7 @@ export default function App() {
                         <th className="p-4">تفاصيل الإيجار / التأجير</th>
                         <th className="p-4">نهاية العقد</th>
                         <th className="p-4">الحالة</th>
-                        {currentRole.canDelete && <th className="p-4 text-center">إجراء</th>}
+                        <th className="p-4 text-center">إجراء</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 text-slate-200">
@@ -1088,17 +1104,15 @@ export default function App() {
                                 {unit.status}
                               </span>
                             </td>
-                            {currentRole.canDelete && (
-                              <td className="p-4 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
-                                  className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                                >
-                                  <Trash2 className="w-3 h-3" /> حذف
-                                </button>
-                              </td>
-                            )}
+                            <td className="p-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
+                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                              >
+                                <Trash2 className="w-3 h-3" /> حذف
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -1109,7 +1123,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === "billing" && currentRole.canViewBilling && (
+          {activeTab === "billing" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
@@ -1132,11 +1146,9 @@ export default function App() {
                     <CreditCard className="w-4 h-4 text-[#00D8F6]" /> سجل الفواتير والإيصالات الرقمية
                   </h3>
                   <div className="flex flex-wrap items-center gap-2">
-                    {currentRole.canManageBilling && (
-                      <button type="button" onClick={() => setShowAddInvoiceModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:brightness-110 transition">
-                        <Plus className="w-3.5 h-3.5" /> فاتورة جديدة
-                      </button>
-                    )}
+                    <button type="button" onClick={() => setShowAddInvoiceModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:brightness-110 transition">
+                      <Plus className="w-3.5 h-3.5" /> فاتورة جديدة
+                    </button>
                     {["الكل", "مدفوع", "متأخر", "قيد الانتظار"].map((filter) => (
                       <button key={filter} type="button" onClick={() => setInvoiceFilter(filter)} className={`px-2.5 py-1 rounded-lg text-xs transition ${invoiceFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
                         {filter}
@@ -1172,7 +1184,7 @@ export default function App() {
                             </span>
                           </td>
                           <td className="p-3 text-center flex items-center justify-center gap-2">
-                            {currentRole.canManageBilling && inv.status !== "مدفوع" && (
+                            {inv.status !== "مدفوع" && (
                               <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
                                 تحصيل الآن
                               </button>
@@ -1180,15 +1192,13 @@ export default function App() {
                             <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
                               <Printer className="w-3 h-3" /> الإيصال
                             </button>
-                            {currentRole.canDelete && (
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `الفاتورة ${inv.id}` })}
-                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                              >
-                                <Trash2 className="w-3 h-3" /> حذف
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `الفاتورة ${inv.id}` })}
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                            >
+                              <Trash2 className="w-3 h-3" /> حذف
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -1208,11 +1218,9 @@ export default function App() {
                   </h2>
                   <p className="text-xs text-slate-400">الصيانة المدفوعة خارج العقد لا تُغلق إلى «تم الحل» قبل تأكيد الدفع</p>
                 </div>
-                {currentRole.canManageTickets && (
-                  <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
-                    <Plus className="w-4 h-4" /> بلاغ صيانة جديد
-                  </button>
-                )}
+                <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                  <Plus className="w-4 h-4" /> بلاغ صيانة جديد
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1221,8 +1229,6 @@ export default function App() {
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
-                      canManage={currentRole.canManageTickets || currentRole.canManageBilling}
-                      canDelete={currentRole.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
                       onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
@@ -1235,8 +1241,6 @@ export default function App() {
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
-                      canManage={currentRole.canManageTickets || currentRole.canManageBilling}
-                      canDelete={currentRole.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
                       onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
@@ -1249,8 +1253,6 @@ export default function App() {
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
-                      canManage={currentRole.canManageTickets || currentRole.canManageBilling}
-                      canDelete={currentRole.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
                       onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
@@ -1270,11 +1272,9 @@ export default function App() {
                   </h2>
                   <p className="text-xs text-slate-400">بث الإشعارات والتعليمات للملاك والمستأجرين</p>
                 </div>
-                {currentRole.canManageAnnouncements && (
-                  <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
-                    <Plus className="w-4 h-4" /> إعلان جديد
-                  </button>
-                )}
+                <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> إعلان جديد
+                </button>
               </div>
 
               <div className="space-y-4">
@@ -1287,15 +1287,13 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-slate-400">{item.date}</span>
-                        {currentRole.canDelete && (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
-                            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                          >
-                            <Trash2 className="w-3 h-3" /> حذف
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
+                          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                        >
+                          <Trash2 className="w-3 h-3" /> حذف
+                        </button>
                       </div>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">{item.content}</p>
@@ -1307,6 +1305,112 @@ export default function App() {
                 ))}
               </div>
             </div>
+          )}
+
+          {activeTab === "settings" && (
+            <form onSubmit={handleSaveSettings} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-5 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Settings className="w-5 h-5 text-[#00D8F6]" /> إعدادات المول والأدوار والوحدات
+                  </h2>
+                  <p className="text-xs text-slate-400">اضبط اسم المول، أدوار المول، وعدد الوحدات وتصنيف كل دور ليتناسب مع أي مول</p>
+                </div>
+                <button type="submit" className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs inline-flex items-center gap-1.5">
+                  <Save className="w-4 h-4" /> حفظ الإعدادات
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 mb-1 font-semibold">اسم المول</label>
+                  <input
+                    type="text"
+                    value={draftConfig.mallName}
+                    onChange={(e) => setDraftConfig({ ...draftConfig, mallName: e.target.value })}
+                    className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                  />
+                </div>
+                <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 flex items-center justify-between">
+                  <span className="text-slate-400">إجمالي وحدات المول المحسوب:</span>
+                  <span className="text-base font-black text-[#00D8F6]">
+                    {draftConfig.floors.reduce((acc, f) => acc + (Number(f.unitsCount) || 0), 0)} وحدة
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-slate-200">أدوار المول وعدد الوحدات وتصنيف كل دور</h3>
+                  <button type="button" onClick={handleAddFloorRow} className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg font-semibold border border-slate-700 inline-flex items-center gap-1">
+                    <Plus className="w-3.5 h-3.5 text-[#00D8F6]" /> إضافة دور
+                  </button>
+                </div>
+
+                {draftConfig.floors.map((floor, idx) => (
+                  <div key={floor.id} className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#070F1B] p-3.5 rounded-xl border border-slate-800">
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">اسم / رقم الدور</label>
+                      <input
+                        type="text"
+                        value={floor.name}
+                        onChange={(e) => {
+                          const next = [...draftConfig.floors];
+                          next[idx] = { ...next[idx], name: e.target.value };
+                          setDraftConfig({ ...draftConfig, floors: next });
+                        }}
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">نوع النشاط في الدور</label>
+                      <select
+                        value={floor.category}
+                        onChange={(e) => {
+                          const next = [...draftConfig.floors];
+                          next[idx] = { ...next[idx], category: e.target.value };
+                          setDraftConfig({ ...draftConfig, floors: next });
+                        }}
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      >
+                        <option value="تجاري (محلات)">تجاري (محلات)</option>
+                        <option value="دوبليكس تجاري">دوبليكس تجاري</option>
+                        <option value="إداري">إداري</option>
+                        <option value="مختلط">مختلط</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">عدد الوحدات في الدور</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={floor.unitsCount}
+                        onChange={(e) => {
+                          const next = [...draftConfig.floors];
+                          next[idx] = { ...next[idx], unitsCount: Number(e.target.value) || 0 };
+                          setDraftConfig({ ...draftConfig, floors: next });
+                        }}
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[10px]">ملاحظات الدور</label>
+                      <input
+                        type="text"
+                        value={floor.notes || ""}
+                        onChange={(e) => {
+                          const next = [...draftConfig.floors];
+                          next[idx] = { ...next[idx], notes: e.target.value };
+                          setDraftConfig({ ...draftConfig, floors: next });
+                        }}
+                        placeholder="مثال: دوبليكس مرتبط بالأرضي"
+                        className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </form>
           )}
         </div>
       </main>
@@ -1369,15 +1473,14 @@ export default function App() {
                 <select value={newUnit.type} onChange={(e) => setNewUnit({ ...newUnit, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
                   <option value="تجاري">تجاري</option>
                   <option value="إداري">إداري</option>
-                  <option value="مطاعم وكافيهات">مطاعم وكافيهات</option>
-                  <option value="عيادات">عيادات</option>
                 </select>
               </div>
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
                 <select value={newUnit.floor} onChange={(e) => setNewUnit({ ...newUnit, floor: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  <option value="الدور الأرضي">الدور الأرضي</option>
-                  <option value="الدور الأول">الدور الأول</option>
+                  {mallConfig.floors.map((f) => (
+                    <option key={f.id} value={f.name}>{f.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -1585,7 +1688,7 @@ export default function App() {
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div>
                 <h3 className="text-xl font-black text-[#0B192C]">إيصال استلام نقدية / خدمات</h3>
-                <p className="text-xs text-slate-500">مول الفيوم الجديدة - الإدارة التشغيلية</p>
+                <p className="text-xs text-slate-500">{mallConfig.mallName} - الإدارة التشغيلية</p>
               </div>
               <div className="text-left font-mono">
                 <span className="text-xs text-cyan-700 font-bold block">Valict Cloud Secured</span>
@@ -1715,7 +1818,7 @@ function KanbanColumn({ title, count, color, children }) {
   );
 }
 
-function TicketCard({ ticket, canManage, canDelete, onMove, onMarkPaid, onDelete }) {
+function TicketCard({ ticket, onMove, onMarkPaid, onDelete }) {
   const isUnpaidPaidTicket = ticket.billingType === "مدفوع" && ticket.paymentStatus !== "مدفوع";
 
   return (
@@ -1726,16 +1829,14 @@ function TicketCard({ ticket, canManage, canDelete, onMove, onMarkPaid, onDelete
           <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
             {ticket.priority}
           </span>
-          {canDelete && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
-              title="حذف البلاغ"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onDelete}
+            className="text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
+            title="حذف البلاغ"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
@@ -1751,7 +1852,7 @@ function TicketCard({ ticket, canManage, canDelete, onMove, onMarkPaid, onDelete
           <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">ضمن عقد الصيانة</span>
         )}
 
-        {canManage && isUnpaidPaidTicket && (
+        {isUnpaidPaidTicket && (
           <button
             type="button"
             onClick={onMarkPaid}
@@ -1764,27 +1865,25 @@ function TicketCard({ ticket, canManage, canDelete, onMove, onMarkPaid, onDelete
 
       <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
         <span className="text-slate-400">{ticket.date}</span>
-        {canManage && (
-          <div className="flex items-center gap-1">
-            {ticket.status !== "new" && (
-              <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>
-            )}
-            {ticket.status !== "in_progress" && (
-              <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>
-            )}
-            {ticket.status !== "resolved" && (
-              <button
-                type="button"
-                disabled={isUnpaidPaidTicket}
-                onClick={() => onMove("resolved")}
-                title={isUnpaidPaidTicket ? "يلزم تأكيد الدفع أولاً لإغلاق البلاغ" : "نقل إلى تم الحل"}
-                className={`px-1 ${isUnpaidPaidTicket ? "text-slate-600 cursor-not-allowed" : "text-emerald-400 hover:underline"}`}
-              >
-                تم الحل
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-1">
+          {ticket.status !== "new" && (
+            <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>
+          )}
+          {ticket.status !== "in_progress" && (
+            <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>
+          )}
+          {ticket.status !== "resolved" && (
+            <button
+              type="button"
+              disabled={isUnpaidPaidTicket}
+              onClick={() => onMove("resolved")}
+              title={isUnpaidPaidTicket ? "يلزم تأكيد الدفع أولاً لإغلاق البلاغ" : "نقل إلى تم الحل"}
+              className={`px-1 ${isUnpaidPaidTicket ? "text-slate-600 cursor-not-allowed" : "text-emerald-400 hover:underline"}`}
+            >
+              تم الحل
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
