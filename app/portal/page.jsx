@@ -104,20 +104,10 @@ export default function PortalPage() {
   const [selectedUnitId, setSelectedUnitId] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [authenticatedUnitId, setAuthenticatedUnitId] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("mms_portal_unit") || "";
-    }
-    return "";
-  });
+  const [authenticatedUnitId, setAuthenticatedUnitId] = useState("");
+  const [authReady, setAuthReady] = useState(false);
 
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("mms_portal_tab") || "summary";
-    }
-    return "summary";
-  });
-
+  const [activeTab, setActiveTab] = useState("summary");
   const [notice, setNotice] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
@@ -126,6 +116,16 @@ export default function PortalPage() {
     category: "تكييف",
     priority: "متوسط",
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedUnit = localStorage.getItem("mms_portal_unit") || "";
+      const savedTab = localStorage.getItem("mms_portal_tab") || "summary";
+      setAuthenticatedUnitId(savedUnit);
+      setActiveTab(savedTab);
+    }
+    setAuthReady(true);
+  }, []);
 
   const handleSelectPortalTab = useCallback((tabName) => {
     setActiveTab(tabName);
@@ -287,6 +287,14 @@ export default function PortalPage() {
     setNotice(`تمت موافقتك على مبلغ الصيانة (${Number(target.serviceFee || 0).toLocaleString()} ج.م) للبلاغ ${ticketId}؛ سيتم توجيه الفني للتنفيذ.`);
   };
 
+  if (!authReady) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-400 flex items-center justify-center p-4 text-xs font-sans">
+        جاري تحميل الجلسة...
+      </div>
+    );
+  }
+
   if (!activeUnit) {
     return (
       <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 flex items-center justify-center p-4 font-sans">
@@ -294,7 +302,7 @@ export default function PortalPage() {
           <div className="flex flex-col items-center text-center border-b border-slate-800 pb-4 gap-2">
             <img src="/valict-logo.png" alt="MMS Logo" className="h-12 w-auto object-contain" />
             <h1 className="text-lg font-black text-white">بوابة المالك والمستأجر — {mallName}</h1>
-            <p className="text-xs text-slate-400">متابعة الفواتير، الموافقة على صيانة خارج العقد، وتقديم بلاغات الصيانة</p>
+            <p className="text-xs text-slate-400">متابعة المطالبات والفواتير، الموافقة على صيانة خارج العقد، وتقديم بلاغات الصيانة</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 text-xs">
@@ -355,6 +363,8 @@ export default function PortalPage() {
     );
   }
 
+  const isSelectedPaid = selectedInvoice?.status === "مدفوع";
+
   return (
     <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 text-right font-sans">
       <header className="bg-[#0B192C] border-b border-slate-800 px-4 sm:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
@@ -402,7 +412,7 @@ export default function PortalPage() {
             </p>
           </div>
           <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
-            <p className="text-slate-400">المستحقات غير المسددة</p>
+            <p className="text-slate-400">المطالبات غير المسددة</p>
             <p className={`text-xl font-black mt-1 ${unpaidAmount > 0 ? "text-rose-400" : "text-emerald-400"}`}>
               {unpaidAmount.toLocaleString()} ج.م
             </p>
@@ -589,7 +599,7 @@ export default function PortalPage() {
                           </div>
                         )}
                         {t.invoiceId && (
-                          <p className="text-[10px] text-cyan-300 font-mono">تم إصدار الفاتورة بعد الحل: {t.invoiceId}</p>
+                          <p className="text-[10px] text-cyan-300 font-mono">تم إصدار المطالبة بعد الحل: {t.invoiceId}</p>
                         )}
                       </div>
                     );
@@ -602,47 +612,56 @@ export default function PortalPage() {
 
         {activeTab === "billing" && (
           <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4 text-xs">
-            <h2 className="text-sm font-bold text-white border-b border-slate-800 pb-2.5">فواتير الوحدة</h2>
+            <h2 className="text-sm font-bold text-white border-b border-slate-800 pb-2.5">مطالبات وفواتير الوحدة</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-right">
                 <thead className="bg-[#070F1B] text-slate-400 border-b border-slate-800">
                   <tr>
-                    <th className="p-3">رقم الفاتورة</th>
+                    <th className="p-3">رقم المرجع</th>
+                    <th className="p-3">النوع</th>
                     <th className="p-3">البيان</th>
                     <th className="p-3">المبلغ</th>
                     <th className="p-3">تاريخ الاستحقاق</th>
                     <th className="p-3">الحالة</th>
-                    <th className="p-3 text-center">إيصال</th>
+                    <th className="p-3 text-center">المستند</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {unitInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="p-6 text-center text-slate-500">لا توجد فواتير مسجلة لهذه الوحدة حالياً.</td>
+                      <td colSpan="7" className="p-6 text-center text-slate-500">لا توجد مطالبات أو فواتير مسجلة لهذه الوحدة حالياً.</td>
                     </tr>
                   ) : (
-                    unitInvoices.map((inv) => (
-                      <tr key={inv.id}>
-                        <td className="p-3 font-mono text-slate-300">{inv.id}</td>
-                        <td className="p-3 text-slate-100">{inv.type}</td>
-                        <td className="p-3 font-bold text-white">{Number(inv.amount || 0).toLocaleString()} ج.م</td>
-                        <td className="p-3 text-slate-400">{inv.dueDate}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${inv.status === "مدفوع" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
-                            {inv.status}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedInvoice(inv)}
-                            className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 px-2.5 py-1 rounded text-[10px] font-semibold inline-flex items-center gap-1"
-                          >
-                            <Printer className="w-3 h-3" /> عرض
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    unitInvoices.map((inv) => {
+                      const isPaid = inv.status === "مدفوع";
+                      return (
+                        <tr key={inv.id}>
+                          <td className="p-3 font-mono text-slate-300">{inv.id}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30" : "bg-amber-500/10 text-amber-300 border-amber-500/30"}`}>
+                              {isPaid ? "فاتورة / إيصال" : "مطالبة"}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-100">{inv.type}</td>
+                          <td className="p-3 font-bold text-white">{Number(inv.amount || 0).toLocaleString()} ج.م</td>
+                          <td className="p-3 text-slate-400">{inv.dueDate}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${isPaid ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
+                              {isPaid ? "مدفوع" : inv.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInvoice(inv)}
+                              className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 px-2.5 py-1 rounded text-[10px] font-semibold inline-flex items-center gap-1"
+                            >
+                              <Printer className="w-3 h-3" /> {isPaid ? "عرض الفاتورة" : "عرض المطالبة"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -674,7 +693,9 @@ export default function PortalPage() {
           <div className="bg-white text-slate-900 w-full max-w-md rounded-2xl p-6 space-y-4 text-xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="text-base font-black text-[#0B192C]">إيصال فاتورة</h3>
+                <h3 className="text-base font-black text-[#0B192C]">
+                  {isSelectedPaid ? "إيصال فاتورة مسددة" : "بيان مطالبة مالية"}
+                </h3>
                 <p className="text-slate-500">{mallName}</p>
               </div>
               <button type="button" onClick={() => setSelectedInvoice(null)} className="text-slate-500 hover:text-slate-900">
@@ -682,11 +703,17 @@ export default function PortalPage() {
               </button>
             </div>
             <div className="space-y-1.5">
-              <p>رقم الفاتورة: <strong>{selectedInvoice.id}</strong></p>
+              <p>رقم المرجع: <strong>{selectedInvoice.id}</strong></p>
               <p>الوحدة: <strong>{selectedInvoice.unitId} — {selectedInvoice.tenant}</strong></p>
               <p>البيان: <strong>{selectedInvoice.type}</strong></p>
-              <p>المبلغ: <strong className="text-emerald-700">{Number(selectedInvoice.amount || 0).toLocaleString()} ج.م</strong></p>
-              <p>الحالة: <strong>{selectedInvoice.status}</strong></p>
+              <p>المبلغ: <strong className={isSelectedPaid ? "text-emerald-700" : "text-amber-700"}>{Number(selectedInvoice.amount || 0).toLocaleString()} ج.م</strong></p>
+              <p>تاريخ الاستحقاق: <strong>{selectedInvoice.dueDate}</strong></p>
+              <p>الحالة: <strong>{isSelectedPaid ? "مدفوع" : selectedInvoice.status}</strong></p>
+              {!isSelectedPaid && (
+                <p className="text-[11px] text-slate-600 pt-1">
+                  ملاحظة: هذه مطالبة قائمة؛ تصبح فاتورة وإيصالاً بعد سدادها وتحصيلها من الإدارة.
+                </p>
+              )}
             </div>
             <div className="pt-2 flex justify-end">
               <button type="button" onClick={() => window.print()} className="bg-[#0B192C] text-white px-4 py-2 rounded-lg font-bold inline-flex items-center gap-1.5">
