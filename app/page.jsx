@@ -31,6 +31,8 @@ import {
   Lock,
   LogOut,
   KeyRound,
+  History,
+  Archive,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -126,6 +128,7 @@ const INITIAL_UNITS = [
     floor: "الدور الأرضي",
     phone: "01012345678",
     portalPassword: "1234",
+    contractHistory: [],
   },
   {
     id: "F-12",
@@ -143,6 +146,7 @@ const INITIAL_UNITS = [
     floor: "الدور الأول العلوي",
     phone: "01123456789",
     portalPassword: "1234",
+    contractHistory: [],
   },
   {
     id: "F-08",
@@ -160,6 +164,7 @@ const INITIAL_UNITS = [
     floor: "الدور الأول العلوي",
     phone: "01099998877",
     portalPassword: "1234",
+    contractHistory: [],
   },
   {
     id: "G-09",
@@ -177,6 +182,7 @@ const INITIAL_UNITS = [
     floor: "الدور الأرضي",
     phone: "01234567890",
     portalPassword: "1234",
+    contractHistory: [],
   },
   {
     id: "S-02",
@@ -194,6 +200,7 @@ const INITIAL_UNITS = [
     floor: "الدور الأرضي",
     phone: "01055554433",
     portalPassword: "1234",
+    contractHistory: [],
   },
   {
     id: "F-05",
@@ -211,6 +218,7 @@ const INITIAL_UNITS = [
     floor: "الدور الثاني",
     phone: "01188887766",
     portalPassword: "1234",
+    contractHistory: [],
   },
   {
     id: "S-14",
@@ -228,6 +236,7 @@ const INITIAL_UNITS = [
     floor: "الدور الأرضي",
     phone: "01044443322",
     portalPassword: "1234",
+    contractHistory: [],
   },
 ];
 
@@ -315,6 +324,7 @@ const mapUnitFromDb = (row) => {
     floor: row.floor || "الدور الأرضي",
     phone: row.phone || "",
     portalPassword: row.portal_password || "1234",
+    contractHistory: Array.isArray(row.contract_history) ? row.contract_history : [],
   };
 };
 
@@ -746,6 +756,7 @@ export default function App() {
       expireDate: isOwner ? "" : newUnit.expireDate,
       status: isOwner ? (isSubleased ? "مؤجرة للغير" : "مملوكة للمالك") : "نشط",
       portalPassword: newUnit.portalPassword.trim() || "1234",
+      contractHistory: [],
     };
 
     setUnits((prev) => [...prev, unitRecord]);
@@ -796,6 +807,9 @@ export default function App() {
       phone: unit.phone || "",
       portalPassword: unit.portalPassword || "1234",
       status: unit.status || "نشط",
+      contractHistory: Array.isArray(unit.contractHistory) ? unit.contractHistory : [],
+      archiveCurrentContract: false,
+      archiveReason: "انتهاء العقد / تغيير المشغل",
     });
   };
 
@@ -806,6 +820,28 @@ export default function App() {
     const newId = editUnitForm.id.trim();
     const isOwner = editUnitForm.ownershipType === "مالك";
     const isSubleased = isOwner ? Boolean(editUnitForm.isSubleased) : false;
+    const previousUnit = units.find((u) => u.id === editingUnitOriginalId);
+
+    let nextHistory = Array.isArray(editUnitForm.contractHistory) ? [...editUnitForm.contractHistory] : [];
+    if (editUnitForm.archiveCurrentContract && previousUnit) {
+      const today = new Date().toISOString().split("T")[0];
+      const historyEntry = {
+        id: `HIST-${Date.now()}`,
+        partyName:
+          previousUnit.ownershipType === "مالك" && previousUnit.isSubleased && previousUnit.subtenantName
+            ? `${previousUnit.tenant} (مؤجر لـ: ${previousUnit.subtenantName})`
+            : previousUnit.tenant,
+        ownershipType: previousUnit.ownershipType,
+        amount:
+          previousUnit.ownershipType === "مالك"
+            ? Number(previousUnit.subleaseRent || 0)
+            : Number(previousUnit.rent || 0),
+        endDate: previousUnit.expireDate || previousUnit.subleaseExpireDate || today,
+        archivedAt: today,
+        reason: editUnitForm.archiveReason || "إنهاء / أرشفة العقد السابق",
+      };
+      nextHistory = [historyEntry, ...nextHistory];
+    }
 
     const nextStatus = isOwner
       ? isSubleased
@@ -831,6 +867,7 @@ export default function App() {
       phone: editUnitForm.phone.trim(),
       portalPassword: editUnitForm.portalPassword.trim() || "1234",
       status: nextStatus,
+      contractHistory: nextHistory,
     };
 
     setUnits((prev) =>
@@ -845,7 +882,11 @@ export default function App() {
         if (newId !== editingUnitOriginalId) {
           await supabase.from("units").delete().eq("id", editingUnitOriginalId);
         }
-        setNoticeMessage(`تم تحديث بيانات الوحدة ${updatedRecord.id} (${updatedRecord.ownershipType}) بنجاح.`);
+        setNoticeMessage(
+          editUnitForm.archiveCurrentContract
+            ? `تم أرشفة العقد/التشغيل السابق وحفظ تحديثات الوحدة ${updatedRecord.id} مع الاحتفاظ بالسجل التاريخي والفواتير.`
+            : `تم تحديث بيانات الوحدة ${updatedRecord.id} (${updatedRecord.ownershipType}) بنجاح.`
+        );
       }
     } else {
       setNoticeMessage(`تم تحديث بيانات الوحدة ${updatedRecord.id}.`);
@@ -853,6 +894,30 @@ export default function App() {
 
     setEditingUnitOriginalId(null);
     setEditUnitForm(null);
+  };
+
+  const handleRequestDeleteUnit = (unit) => {
+    const unpaidInvoices = invoices.filter((inv) => inv.unitId === unit.id && inv.status !== "مدفوع");
+    const openOrUnpaidTickets = tickets.filter(
+      (t) => t.unitId === unit.id && (t.status !== "resolved" || (t.billingType === "مدفوع" && t.paymentStatus !== "مدفوع"))
+    );
+
+    if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
+      const unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+      const reasons = [];
+      if (unpaidInvoices.length > 0) {
+        reasons.push(`${unpaidInvoices.length} فاتورة غير محصلة بإجمالي ${unpaidTotal.toLocaleString()} ج.م`);
+      }
+      if (openOrUnpaidTickets.length > 0) {
+        reasons.push(`${openOrUnpaidTickets.length} بلاغ صيانة مفتوح أو غير مسدد`);
+      }
+      setNoticeMessage(
+        `لا يمكن حذف الوحدة ${unit.id} (${unit.tenant}) لوجود: ${reasons.join(" و")}؛ يجب تحصيل أو تسوية الفواتير وإغلاق البلاغات أولاً (أو أرشفة العقد السابق بدلاً من الحذف).`
+      );
+      return;
+    }
+
+    setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` });
   };
 
   const handleAddInvoice = async (e) => {
@@ -1031,6 +1096,17 @@ export default function App() {
     if (!deleteTarget) return;
     const { kind, id, label } = deleteTarget;
     setDeleteTarget(null);
+
+    if (kind === "unit") {
+      const unpaidInvoices = invoices.filter((inv) => inv.unitId === id && inv.status !== "مدفوع");
+      const openOrUnpaidTickets = tickets.filter(
+        (t) => t.unitId === id && (t.status !== "resolved" || (t.billingType === "مدفوع" && t.paymentStatus !== "مدفوع"))
+      );
+      if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
+        setNoticeMessage(`تم إيقاف حذف ${label} لوجود فواتير غير محصلة أو بلاغات صيانة معلقة.`);
+        return;
+      }
+    }
 
     const tableMap = {
       unit: "units",
@@ -1333,9 +1409,9 @@ export default function App() {
         </header>
 
         {noticeMessage && (
-          <div className="mx-4 sm:mx-6 lg:mx-8 mt-4 bg-[#0B192C] border border-[#00D8F6]/40 text-slate-200 px-4 py-2.5 rounded-xl text-xs flex items-center justify-between">
+          <div className="mx-4 sm:mx-6 lg:mx-8 mt-4 bg-[#0B192C] border border-[#00D8F6]/40 text-slate-200 px-4 py-2.5 rounded-xl text-xs flex items-center justify-between gap-3">
             <span>{noticeMessage}</span>
-            <button type="button" onClick={() => setNoticeMessage("")} className="text-slate-400 hover:text-white text-xs">إغلاق</button>
+            <button type="button" onClick={() => setNoticeMessage("")} className="text-slate-400 hover:text-white text-xs shrink-0">إغلاق</button>
           </div>
         )}
 
@@ -1478,7 +1554,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-[#00D8F6]" /> دليل الوحدات والملاك والعقود
                   </h2>
-                  <p className="text-xs text-slate-400">التمييز بين الملاك والمستأجرين وتأجير المالك لوحدته للغير</p>
+                  <p className="text-xs text-slate-400">حماية المستحقات من الحذف، وحفظ السجل التاريخي للعقود والتأجير على نفس الوحدة</p>
                 </div>
                 {perms.canManageUnits && (
                   <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -1512,11 +1588,17 @@ export default function App() {
                     <tbody className="divide-y divide-slate-800/60 text-slate-200">
                       {filteredUnits.map((unit) => {
                         const isOwner = unit.ownershipType === "مالك";
+                        const historyCount = Array.isArray(unit.contractHistory) ? unit.contractHistory.length : 0;
                         return (
                           <tr key={unit.id} className="hover:bg-slate-800/40 transition">
                             <td className="p-4 font-bold text-[#00D8F6]">
                               {unit.id}
                               <span className="block text-[10px] text-slate-400 font-normal">{unit.floor} • {unit.area}</span>
+                              {historyCount > 0 && (
+                                <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px]">
+                                  <History className="w-2.5 h-2.5 text-[#00D8F6]" /> سجل سابق ({historyCount})
+                                </span>
+                              )}
                             </td>
                             <td className="p-4">
                               <p className="font-bold text-slate-100">{unit.tenant}</p>
@@ -1564,7 +1646,7 @@ export default function App() {
                                 {perms.canDelete && (
                                   <button
                                     type="button"
-                                    onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
+                                    onClick={() => handleRequestDeleteUnit(unit)}
                                     className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
                                   >
                                     <Trash2 className="w-3 h-3" /> حذف
@@ -2061,7 +2143,7 @@ export default function App() {
             setEditUnitForm(null);
           }}
         >
-          <form onSubmit={handleSaveEditedUnit} className="space-y-4 text-xs">
+          <form onSubmit={handleSaveEditedUnit} className="space-y-4 text-xs max-h-[75vh] overflow-y-auto pl-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة</label>
@@ -2222,6 +2304,49 @@ export default function App() {
                 )}
               </div>
             )}
+
+            <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 space-y-2.5">
+              <label className="flex items-center gap-2 text-[#00D8F6] font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(editUnitForm.archiveCurrentContract)}
+                  onChange={(e) => setEditUnitForm({ ...editUnitForm, archiveCurrentContract: e.target.checked })}
+                  className="rounded border-slate-600"
+                />
+                <Archive className="w-3.5 h-3.5" />
+                <span>أرشفة العقد / التشغيل الحالي في السجل التاريخي قبل إضافة طرف جديد</span>
+              </label>
+
+              {editUnitForm.archiveCurrentContract && (
+                <div>
+                  <label className="block text-slate-400 mb-1 text-[10px]">سبب إنهاء / أرشفة العقد السابق</label>
+                  <input
+                    type="text"
+                    value={editUnitForm.archiveReason || ""}
+                    onChange={(e) => setEditUnitForm({ ...editUnitForm, archiveReason: e.target.value })}
+                    placeholder="انتهاء مدة الإيجار أو تغيير المستأجر من الباطن"
+                    className="w-full bg-[#0B192C] border border-slate-700 rounded-lg p-2 text-slate-200"
+                  />
+                </div>
+              )}
+
+              {Array.isArray(editUnitForm.contractHistory) && editUnitForm.contractHistory.length > 0 && (
+                <div className="pt-2 border-t border-slate-800 space-y-1.5">
+                  <p className="text-[10px] font-bold text-slate-300 flex items-center gap-1">
+                    <History className="w-3 h-3 text-[#00D8F6]" /> السجل التاريخي للعقود والمشغلين السابقين:
+                  </p>
+                  {editUnitForm.contractHistory.map((h) => (
+                    <div key={h.id} className="bg-[#0B192C] border border-slate-800/80 rounded-lg p-2 text-[10px] flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-bold text-slate-200">{h.partyName} ({h.ownershipType})</p>
+                        <p className="text-slate-400">{h.reason} • أُرشف في: {h.archivedAt}</p>
+                      </div>
+                      <span className="text-emerald-400 font-bold shrink-0">{Number(h.amount || 0).toLocaleString()} ج.م</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="pt-2 flex items-center justify-end gap-2">
               <button
