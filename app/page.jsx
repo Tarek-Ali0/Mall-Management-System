@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Building2,
   LayoutDashboard,
@@ -10,7 +10,6 @@ import {
   Search,
   Plus,
   CheckCircle2,
-  Clock,
   AlertTriangle,
   TrendingUp,
   Printer,
@@ -21,8 +20,8 @@ import {
   Sparkles,
   Calendar,
   DollarSign,
-  Filter,
 } from "lucide-react";
+import { supabase } from "../lib/supabaseClient";
 
 const INITIAL_UNITS = [
   { id: "G-04", tenant: "مطعم كوك اند غروب", type: "تجاري", area: "120 م²", rent: 35000, status: "نشط", expireDate: "2026-12-15", floor: "الدور الأرضي", phone: "01012345678" },
@@ -56,79 +55,243 @@ const INITIAL_ANNOUNCEMENTS = [
 
 const TOTAL_MALL_UNITS = 120;
 
+const mapUnitToDb = (u) => ({
+  id: u.id,
+  tenant: u.tenant,
+  type: u.type,
+  area: u.area || "",
+  rent: Number(u.rent) || 0,
+  status: u.status || "نشط",
+  expire_date: u.expireDate || "",
+  floor: u.floor || "الدور الأرضي",
+  phone: u.phone || "",
+});
+
+const mapUnitFromDb = (row) => ({
+  id: row.id,
+  tenant: row.tenant,
+  type: row.type,
+  area: row.area || "",
+  rent: Number(row.rent) || 0,
+  status: row.status || "نشط",
+  expireDate: row.expire_date || "",
+  floor: row.floor || "الدور الأرضي",
+  phone: row.phone || "",
+});
+
+const mapInvoiceToDb = (inv) => ({
+  id: inv.id,
+  unit_id: inv.unitId,
+  tenant: inv.tenant,
+  amount: Number(inv.amount) || 0,
+  type: inv.type,
+  due_date: inv.dueDate,
+  status: inv.status,
+  payment_date: inv.paymentDate || "-",
+});
+
+const mapInvoiceFromDb = (row) => ({
+  id: row.id,
+  unitId: row.unit_id,
+  tenant: row.tenant,
+  amount: Number(row.amount) || 0,
+  type: row.type,
+  dueDate: row.due_date,
+  status: row.status,
+  paymentDate: row.payment_date || "-",
+});
+
+const mapTicketToDb = (t) => ({
+  id: t.id,
+  unit_id: t.unitId,
+  title: t.title,
+  priority: t.priority,
+  status: t.status,
+  category: t.category || "عام",
+  date_label: t.date || "الآن",
+  assigned_to: t.assignedTo || "فريق الصيانة",
+});
+
+const mapTicketFromDb = (row) => ({
+  id: row.id,
+  unitId: row.unit_id,
+  title: row.title,
+  priority: row.priority,
+  status: row.status,
+  category: row.category || "عام",
+  date: row.date_label || "الآن",
+  assignedTo: row.assigned_to || "فريق الصيانة",
+});
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [noticeMessage, setNoticeMessage] = useState("");
+  const [dbConnected, setDbConnected] = useState(false);
 
-  // Data States
   const [units, setUnits] = useState(INITIAL_UNITS);
   const [invoices, setInvoices] = useState(INITIAL_INVOICES);
   const [tickets, setTickets] = useState(INITIAL_TICKETS);
   const [announcements, setAnnouncements] = useState(INITIAL_ANNOUNCEMENTS);
 
-  // Modals
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
 
-  // Filters
   const [unitFilter, setUnitFilter] = useState("الكل");
   const [invoiceFilter, setInvoiceFilter] = useState("الكل");
 
-  // Forms
   const [newUnit, setNewUnit] = useState({ id: "", tenant: "", type: "تجاري", area: "", rent: "", expireDate: "", floor: "الدور الأرضي", phone: "" });
   const [newAnnouncement, setNewAnnouncement] = useState({ title: "", content: "", priority: "عادي", target: "جميع المستأجرين" });
 
-  // Dynamic Dynamic KPI Calculations
+  const loadFromSupabase = useCallback(async () => {
+    if (!supabase) return;
+
+    const [unitsRes, invoicesRes, ticketsRes, announcementsRes] = await Promise.all([
+      supabase.from("units").select("*"),
+      supabase.from("invoices").select("*"),
+      supabase.from("tickets").select("*"),
+      supabase.from("announcements").select("*").order("id", { ascending: false }),
+    ]);
+
+    if (unitsRes.error || invoicesRes.error || ticketsRes.error || announcementsRes.error) {
+      setNoticeMessage("تعذر قراءة بعض جداول Supabase؛ تأكد من تنفيذ كود إنشاء الجداول والصلاحيات.");
+      return;
+    }
+
+    setDbConnected(true);
+
+    if (unitsRes.data.length === 0) {
+      await supabase.from("units").insert(INITIAL_UNITS.map(mapUnitToDb));
+      setUnits(INITIAL_UNITS);
+    } else {
+      setUnits(unitsRes.data.map(mapUnitFromDb));
+    }
+
+    if (invoicesRes.data.length === 0) {
+      await supabase.from("invoices").insert(INITIAL_INVOICES.map(mapInvoiceToDb));
+      setInvoices(INITIAL_INVOICES);
+    } else {
+      setInvoices(invoicesRes.data.map(mapInvoiceFromDb));
+    }
+
+    if (ticketsRes.data.length === 0) {
+      await supabase.from("tickets").insert(INITIAL_TICKETS.map(mapTicketToDb));
+      setTickets(INITIAL_TICKETS);
+    } else {
+      setTickets(ticketsRes.data.map(mapTicketFromDb));
+    }
+
+    if (announcementsRes.data.length === 0) {
+      await supabase.from("announcements").insert(INITIAL_ANNOUNCEMENTS);
+      setAnnouncements(INITIAL_ANNOUNCEMENTS);
+    } else {
+      setAnnouncements(announcementsRes.data);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFromSupabase();
+  }, [loadFromSupabase]);
+
   const dynamicKpis = useMemo(() => {
     const occupiedCount = units.length;
     const occupancyRate = ((occupiedCount / TOTAL_MALL_UNITS) * 100).toFixed(1);
-    
+
     const totalBilled = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalCollected = invoices.filter(i => i.status === "مدفوع").reduce((sum, inv) => sum + inv.amount, 0);
+    const totalCollected = invoices.filter((i) => i.status === "مدفوع").reduce((sum, inv) => sum + inv.amount, 0);
     const totalPending = totalBilled - totalCollected;
-    
-    const openTicketsCount = tickets.filter(t => t.status !== "resolved").length;
-    const expiringLeasesCount = units.filter(u => u.status.includes("تنبيه") || u.expireDate.startsWith("2026-12")).length;
+
+    const openTicketsCount = tickets.filter((t) => t.status !== "resolved").length;
+    const expiringLeasesCount = units.filter((u) => u.status.includes("تنبيه") || u.expireDate.startsWith("2026-12")).length;
 
     return { occupiedCount, occupancyRate, totalBilled, totalCollected, totalPending, openTicketsCount, expiringLeasesCount };
   }, [units, invoices, tickets]);
 
-  // Handlers
-  const handleAddUnit = (e) => {
+  const handleAddUnit = async (e) => {
     e.preventDefault();
     if (!newUnit.id.trim() || !newUnit.tenant.trim()) return;
-    setUnits([
-      ...units,
-      { ...newUnit, id: newUnit.id.trim(), tenant: newUnit.tenant.trim(), rent: Number(newUnit.rent) || 0, status: "نشط" }
-    ]);
+
+    const unitRecord = {
+      ...newUnit,
+      id: newUnit.id.trim(),
+      tenant: newUnit.tenant.trim(),
+      rent: Number(newUnit.rent) || 0,
+      status: "نشط",
+    };
+
+    setUnits((prev) => [...prev, unitRecord]);
+
+    if (supabase) {
+      const { error } = await supabase.from("units").upsert(mapUnitToDb(unitRecord));
+      if (error) {
+        setNoticeMessage(`تمت الإضافة محلياً لكن حدث خطأ في حفظ قاعدة البيانات: ${error.message}`);
+      } else {
+        setNoticeMessage(`تم حفظ الوحدة ${unitRecord.id} في قاعدة البيانات بنجاح.`);
+      }
+    } else {
+      setNoticeMessage(`تمت إضافة الوحدة ${unitRecord.id} (وضع محلي مؤقت).`);
+    }
+
     setNewUnit({ id: "", tenant: "", type: "تجاري", area: "", rent: "", expireDate: "", floor: "الدور الأرضي", phone: "" });
     setShowAddUnitModal(false);
-    setNoticeMessage(`تمت إضافة الوحدة ${newUnit.id} بنجاح وتحديث الإحصائيات مباشرة.`);
   };
 
-  const handlePayInvoice = (invoiceId) => {
+  const handlePayInvoice = async (invoiceId) => {
     const today = new Date().toISOString().split("T")[0];
-    setInvoices(invoices.map(inv => inv.id === invoiceId ? { ...inv, status: "مدفوع", paymentDate: today } : inv));
-    setNoticeMessage(`تم تحصيل الفاتورة ${invoiceId} وتحديث المبالغ المالية.`);
+    setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: "مدفوع", paymentDate: today } : inv)));
+
+    if (supabase) {
+      const { error } = await supabase
+        .from("invoices")
+        .update({ status: "مدفوع", payment_date: today })
+        .eq("id", invoiceId);
+
+      setNoticeMessage(
+        error
+          ? `تم التحديث محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
+          : `تم تسجيل تحصيل الفاتورة ${invoiceId} وحفظه في قاعدة البيانات.`
+      );
+    }
   };
 
-  const handleAddAnnouncement = (e) => {
+  const handleAddAnnouncement = async (e) => {
     e.preventDefault();
     if (!newAnnouncement.title.trim() || !newAnnouncement.content.trim()) return;
-    setAnnouncements([{ id: Date.now(), ...newAnnouncement, date: new Date().toISOString().split("T")[0] }, ...announcements]);
+
+    const announcementRecord = {
+      id: Date.now(),
+      ...newAnnouncement,
+      date: new Date().toISOString().split("T")[0],
+    };
+
+    setAnnouncements((prev) => [announcementRecord, ...prev]);
+
+    if (supabase) {
+      const { error } = await supabase.from("announcements").insert(announcementRecord);
+      setNoticeMessage(
+        error
+          ? `تم الإرسال محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
+          : "تم بث التنبيه وحفظه في قاعدة البيانات بنجاح."
+      );
+    }
+
     setNewAnnouncement({ title: "", content: "", priority: "عادي", target: "جميع المستأجرين" });
     setShowAnnouncementModal(false);
-    setNoticeMessage("تم بث التنبيه الجديد بنجاح لكل المستأجرين.");
   };
 
-  const moveTicket = (ticketId, newStatus) => {
-    setTickets(tickets.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t)));
+  const moveTicket = async (ticketId, newStatus) => {
+    setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, status: newStatus } : t)));
+
+    if (supabase) {
+      const { error } = await supabase.from("tickets").update({ status: newStatus }).eq("id", ticketId);
+      if (error) {
+        setNoticeMessage(`تعذر تحديث حالة التذكرة في قاعدة البيانات: ${error.message}`);
+      }
+    }
   };
 
-  // Filtered Queries
   const filteredUnits = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return units.filter((u) => {
@@ -150,8 +313,6 @@ export default function App() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 text-right flex flex-col md:flex-row selection:bg-[#00D8F6] selection:text-slate-950 font-sans">
-      
-      {/* Sidebar Navigation */}
       <aside className="w-full md:w-72 bg-[#0B192C] border-b md:border-b-0 md:border-l border-slate-800 flex flex-col justify-between shrink-0">
         <div>
           <div className="p-6 border-b border-slate-800/80 bg-gradient-to-r from-[#0B192C] to-[#1E3E62]/30">
@@ -175,7 +336,10 @@ export default function App() {
                 <Building2 className="w-3.5 h-3.5 text-[#00D8F6]" />
                 مول الفيوم الجديدة
               </span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" title="متصل بالمنظومة"></span>
+              <span
+                className={`w-2.5 h-2.5 rounded-full ${dbConnected ? "bg-emerald-400" : "bg-amber-400"}`}
+                title={dbConnected ? "متصل بقاعدة بيانات Supabase" : "وضع محلي / بانتظار الربط"}
+              ></span>
             </div>
           </div>
 
@@ -192,21 +356,20 @@ export default function App() {
           <div className="bg-[#1E3E62]/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
             <ShieldCheck className="w-7 h-7 text-[#00D8F6] shrink-0" />
             <div className="text-xs">
-              <p className="font-semibold text-slate-200">بنية Valict السحابية</p>
-              <p className="text-[10px] text-slate-400">حماية وتأمين البيانات 99.9%</p>
+              <p className="font-semibold text-slate-200">{dbConnected ? "متصل بقاعدة البيانات" : "بنية Valict السحابية"}</p>
+              <p className="text-[10px] text-slate-400">{dbConnected ? "حفظ دائم عبر Supabase" : "حماية وتأمين البيانات 99.9%"}</p>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0">
         <header className="min-h-16 bg-[#0B192C]/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-10">
           <div className="relative w-full sm:max-w-md">
             <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="ابحث عن وحدة، مستأجر، أوفاتورة..."
+              placeholder="ابحث عن وحدة، مستأجر، أو فاتورة..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[#070F1B] border border-slate-700/80 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#00D8F6]"
@@ -265,7 +428,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Dynamic KPI Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <KpiCard
                   title="إجمالي الوحدات والإشغال"
@@ -301,7 +463,6 @@ export default function App() {
                 />
               </div>
 
-              {/* Overview Details Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -362,7 +523,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: UNITS */}
           {activeTab === "units" && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
@@ -425,7 +585,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: BILLING */}
           {activeTab === "billing" && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -502,7 +661,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: MAINTENANCE */}
           {activeTab === "maintenance" && (
             <div className="space-y-4">
               <div className="flex items-center justify-between bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
@@ -536,7 +694,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: ANNOUNCEMENTS */}
           {activeTab === "announcements" && (
             <div className="space-y-6">
               <div className="flex items-center justify-between bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
@@ -574,7 +731,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* MODALS */}
       {showAddUnitModal && (
         <Modal title="إضافة وحدة ومستأجر جديد" onClose={() => setShowAddUnitModal(false)}>
           <form onSubmit={handleAddUnit} className="space-y-4 text-xs">
