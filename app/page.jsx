@@ -755,9 +755,13 @@ export default function App() {
     const occupiedCount = units.length;
     const occupancyRate = ((occupiedCount / totalConfiguredUnits) * 100).toFixed(1);
 
-    const totalBilled = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalCollected = invoices.filter((i) => i.status === "مدفوع").reduce((sum, inv) => sum + inv.amount, 0);
-    const totalPending = totalBilled - totalCollected;
+    const totalBilled = invoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+    const totalCollected = invoices
+      .filter((i) => i.status === "مدفوع")
+      .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+    const totalPending = invoices
+      .filter((i) => i.status !== "مدفوع")
+      .reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
 
     const openTicketsCount = tickets.filter((t) => t.status !== "resolved").length;
     const expiringLeasesCount = units.filter(
@@ -1006,13 +1010,13 @@ export default function App() {
       const unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
       const reasons = [];
       if (unpaidInvoices.length > 0) {
-        reasons.push(`${unpaidInvoices.length} فاتورة غير محصلة بإجمالي ${unpaidTotal.toLocaleString()} ج.م`);
+        reasons.push(`${unpaidInvoices.length} مطالبة/فاتورة غير محصلة بإجمالي ${unpaidTotal.toLocaleString()} ج.م`);
       }
       if (openOrUnpaidTickets.length > 0) {
-        reasons.push(`${openOrUnpaidTickets.length} بلاغ صيانة لم يُغلق أو لم تُصدر فاتورته بعد`);
+        reasons.push(`${openOrUnpaidTickets.length} بلاغ صيانة لم يُغلق أو لم تُصدر مطالبته بعد`);
       }
       setNoticeMessage(
-        `لا يمكن حذف الوحدة ${unit.id} (${unit.tenant}) لوجود: ${reasons.join(" و")}؛ يجب تحصيل أو تسوية الفواتير وإغلاق البلاغات أولاً (أو أرشفة العقد السابق بدلاً من الحذف).`
+        `لا يمكن حذف الوحدة ${unit.id} (${unit.tenant}) لوجود: ${reasons.join(" و")}؛ يجب تحصيل أو تسوية المطالبات وإغلاق البلاغات أولاً (أو أرشفة العقد السابق بدلاً من الحذف).`
       );
       return;
     }
@@ -1047,8 +1051,10 @@ export default function App() {
       const { error } = await supabase.from("invoices").upsert(mapInvoiceToDb(invoiceRecord));
       setNoticeMessage(
         error
-          ? `تم إنشاء الفاتورة محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : `تم إنشاء الفاتورة ${invoiceRecord.id} للوحدة ${invoiceRecord.unitId} وحفظها بنجاح.`
+          ? `تم تسجيل السجل محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
+          : invoiceRecord.status === "مدفوع"
+            ? `تم إنشاء الفاتورة المحصّلة ${invoiceRecord.id} وإدخال المبلغ في الخزينة.`
+            : `تم تسجيل المطالبة (مديونية) ${invoiceRecord.id} للوحدة ${invoiceRecord.unitId} لحين التحصيل.`
       );
     }
 
@@ -1056,6 +1062,7 @@ export default function App() {
     setShowAddInvoiceModal(false);
   };
 
+  // عند الضغط على (تحصيل الآن): تتحول المطالبة إلى فاتورة محصّلة وتدخل الخزينة
   const handlePayInvoice = async (invoiceId) => {
     const today = new Date().toISOString().split("T")[0];
     setInvoices((prev) => prev.map((inv) => (inv.id === invoiceId ? { ...inv, status: "مدفوع", paymentDate: today } : inv)));
@@ -1068,9 +1075,11 @@ export default function App() {
 
       setNoticeMessage(
         error
-          ? `تم التحديث محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
-          : `تم تسجيل تحصيل الفاتورة ${invoiceId} وحفظه في قاعدة البيانات.`
+          ? `تم تحويل المطالبة ${invoiceId} إلى محصّلة محلياً لكن فشل الحفظ في قاعدة البيانات: ${error.message}`
+          : `تم تحصيل المطالبة ${invoiceId} وتحويلها إلى فاتورة محصّلة وإدخال المبلغ في الخزينة.`
       );
+    } else {
+      setNoticeMessage(`تم تحصيل المطالبة ${invoiceId} وتحويلها إلى فاتورة محصّلة وإدخال المبلغ في الخزينة.`);
     }
   };
 
@@ -1171,7 +1180,7 @@ export default function App() {
 
     const updatedPatch = {
       approvalStatus: "موافق عليه",
-      paymentStatus: "بانتظار إتمام الإصلاح وإصدار الفاتورة",
+      paymentStatus: "بانتظار إتمام الإصلاح وإصدار المطالبة",
       status: "in_progress",
       assignedTo:
         target.assignedTo && !target.assignedTo.includes("بانتظار")
@@ -1196,7 +1205,7 @@ export default function App() {
     setNoticeMessage(`تم تسجيل موافقة العميل على البلاغ ${ticketId} وتحويله إلى «قيد التنفيذ» لإرسال الفني.`);
   };
 
-  // تأكيد أن المشكلة اتحلت + إصدار الفاتورة تلقائياً في حالة الصيانة خارج العقد
+  // تأكيد أن المشكلة اتحلت + إصدار مطالبة (مديونية) تلقائياً في حالة الصيانة خارج العقد لحين التحصيل
   const handleResolveAndIssueInvoice = async (ticketId) => {
     const ticket = tickets.find((t) => t.id === ticketId);
     if (!ticket) return;
@@ -1207,7 +1216,7 @@ export default function App() {
     }
 
     if (ticket.billingType === "خارج العقد" && ticket.approvalStatus !== "موافق عليه") {
-      setNoticeMessage(`لا يمكن إغلاق البلاغ ${ticketId} أو إصدار فاتورته قبل موافقة العميل على المبلغ.`);
+      setNoticeMessage(`لا يمكن إغلاق البلاغ ${ticketId} أو إصدار مطالبته قبل موافقة العميل على المبلغ.`);
       return;
     }
 
@@ -1245,7 +1254,7 @@ export default function App() {
       status: "resolved",
       invoiceIssued: ticket.billingType === "خارج العقد" ? true : ticket.invoiceIssued,
       invoiceId: issuedInvoiceId,
-      paymentStatus: ticket.billingType === "داخل العقد" ? "مسدد من الوديعة" : "بانتظار التحصيل",
+      paymentStatus: ticket.billingType === "داخل العقد" ? "مسدد من الوديعة" : "مطالبة قائمة بانتظار التحصيل",
     };
 
     setTickets((prev) => prev.map((t) => (t.id === ticketId ? updatedTicket : t)));
@@ -1264,7 +1273,7 @@ export default function App() {
 
     setNoticeMessage(
       issuedInvoiceId
-        ? `تم تأكيد حل المشكلة في البلاغ ${ticketId} وإصدار الفاتورة رقم ${issuedInvoiceId} بقيمة ${Number(ticket.serviceFee).toLocaleString()} ج.م.`
+        ? `تم تأكيد حل المشكلة في البلاغ ${ticketId} وإصدار مطالبة مديونية رقم ${issuedInvoiceId} بقيمة ${Number(ticket.serviceFee).toLocaleString()} ج.م (تُرحّل للخزينة عند التحصيل).`
         : `تم تأكيد حل المشكلة وإغلاق البلاغ ${ticketId} (مغطى من وديعة الصيانة).`
     );
   };
@@ -1305,7 +1314,7 @@ export default function App() {
         (t) => t.unitId === id && (t.status !== "resolved" || (t.billingType === "خارج العقد" && !t.invoiceIssued))
       );
       if (unpaidInvoices.length > 0 || openOrUnpaidTickets.length > 0) {
-        setNoticeMessage(`تم إيقاف حذف ${label} لوجود فواتير غير محصلة أو بلاغات صيانة معلقة.`);
+        setNoticeMessage(`تم إيقاف حذف ${label} لوجود مطالبات غير محصلة أو بلاغات صيانة معلقة.`);
         return;
       }
     }
@@ -1499,11 +1508,11 @@ export default function App() {
             {perms.canViewBilling && (
               <NavItem
                 icon={<CreditCard className="w-5 h-5" />}
-                label="التحصيل والفواتير"
+                label="التحصيل والمطالبات"
                 active={activeTab === "billing"}
                 onClick={() => handleSelectTab("billing")}
-                badge={invoices.filter((i) => i.status === "متأخر").length}
-                badgeColor="bg-rose-500/20 text-rose-400 border-rose-500/30"
+                badge={invoices.filter((i) => i.status !== "مدفوع").length}
+                badgeColor="bg-amber-500/20 text-amber-400 border-amber-500/30"
               />
             )}
             <NavItem
@@ -1564,7 +1573,7 @@ export default function App() {
               <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="ابحث عن وحدة، مالك، مستأجر، أو فاتورة..."
+                placeholder="ابحث عن وحدة، مالك، مستأجر، أو مطالبة/فاتورة..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-[#070F1B] border border-slate-700/80 rounded-xl pr-10 pl-8 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#00D8F6]"
@@ -1651,11 +1660,11 @@ export default function App() {
                 />
                 {perms.canViewBilling ? (
                   <KpiCard
-                    title="تحصيل الفواتير (الشهر الحالي)"
+                    title="المحصّل في الخزينة"
                     value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
-                    subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
+                    subtext={`من إجمالي مطالبات وفواتير ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
                     icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
-                    badge={`متبقي ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
+                    badge={`مطالبات قائمة ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
                     badgeType="warning"
                   />
                 ) : (
@@ -1870,33 +1879,47 @@ export default function App() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
-                  <p className="text-xs text-slate-400">إجمالي المفوتر</p>
+                  <p className="text-xs text-slate-400">إجمالي المطالبات والفواتير</p>
                   <p className="text-xl font-black text-white mt-1">{dynamicKpis.totalBilled.toLocaleString()} ج.م</p>
                 </div>
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
-                  <p className="text-xs text-slate-400">المبلغ المحصل بالفعل</p>
+                  <p className="text-xs text-slate-400">المحصّل في الخزينة (فواتير مسددة)</p>
                   <p className="text-xl font-black text-emerald-400 mt-1">{dynamicKpis.totalCollected.toLocaleString()} ج.م</p>
                 </div>
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
-                  <p className="text-xs text-slate-400">المتبقي والمتأخرات</p>
-                  <p className="text-xl font-black text-rose-400 mt-1">{dynamicKpis.totalPending.toLocaleString()} ج.م</p>
+                  <p className="text-xs text-slate-400">مطالبات / مديونيات خارجية لم تُحصّل</p>
+                  <p className="text-xl font-black text-amber-400 mt-1">{dynamicKpis.totalPending.toLocaleString()} ج.م</p>
                 </div>
               </div>
 
               <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
                   <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-[#00D8F6]" /> سجل الفواتير والإيصالات الرقمية
+                    <CreditCard className="w-4 h-4 text-[#00D8F6]" /> سجل المطالبات والفواتير المحصّلة
                   </h3>
                   <div className="flex flex-wrap items-center gap-2">
                     {perms.canManageBilling && (
                       <button type="button" onClick={() => setShowAddInvoiceModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:brightness-110 transition">
-                        <Plus className="w-3.5 h-3.5" /> فاتورة جديدة
+                        <Plus className="w-3.5 h-3.5" /> مطالبة / فاتورة جديدة
                       </button>
                     )}
-                    {["الكل", "مدفوع", "متأخر", "قيد الانتظار"].map((filter) => (
-                      <button key={filter} type="button" onClick={() => setInvoiceFilter(filter)} className={`px-2.5 py-1 rounded-lg text-xs transition ${invoiceFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
-                        {filter}
+                    {[
+                      { key: "الكل", label: "الكل" },
+                      { key: "قيد الانتظار", label: "مطالبة (مديونية)" },
+                      { key: "متأخر", label: "مطالبة متأخرة" },
+                      { key: "مدفوع", label: "محصّل (في الخزينة)" },
+                    ].map((filter) => (
+                      <button
+                        key={filter.key}
+                        type="button"
+                        onClick={() => setInvoiceFilter(filter.key)}
+                        className={`px-2.5 py-1 rounded-lg text-xs transition ${
+                          invoiceFilter === filter.key
+                            ? "bg-[#00D8F6] text-slate-950 font-bold"
+                            : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                        }`}
+                      >
+                        {filter.label}
                       </button>
                     ))}
                   </div>
@@ -1906,49 +1929,60 @@ export default function App() {
                   <table className="w-full text-right text-xs">
                     <thead className="bg-[#070F1B] text-slate-400 border-b border-slate-800">
                       <tr>
-                        <th className="p-3">رقم الفاتورة</th>
+                        <th className="p-3">رقم المرجع</th>
                         <th className="p-3">الوحدة والطرف</th>
                         <th className="p-3">البيان</th>
                         <th className="p-3">المبلغ</th>
                         <th className="p-3">تاريخ الاستحقاق</th>
                         <th className="p-3">الحالة</th>
-                        <th className="p-3 text-center">إجراء الإيصال</th>
+                        <th className="p-3 text-center">التحصيل والطباعة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {filteredInvoices.map((inv) => (
-                        <tr key={inv.id} className="hover:bg-slate-800/40 transition">
-                          <td className="p-3 font-mono font-semibold text-slate-300">{inv.id}</td>
-                          <td className="p-3 font-bold text-slate-100">{inv.tenant} ({inv.unitId})</td>
-                          <td className="p-3 text-slate-300">{inv.type}</td>
-                          <td className="p-3 font-bold text-white">{inv.amount.toLocaleString()} ج.م</td>
-                          <td className="p-3 text-slate-400">{inv.dueDate}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${inv.status === "مدفوع" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : inv.status === "متأخر" ? "bg-rose-500/10 text-rose-400 border-rose-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
-                              {inv.status}
-                            </span>
-                          </td>
-                          <td className="p-3 text-center flex items-center justify-center gap-2">
-                            {perms.canManageBilling && inv.status !== "مدفوع" && (
-                              <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
-                                تحصيل الآن
-                              </button>
-                            )}
-                            <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
-                              <Printer className="w-3 h-3" /> الإيصال
-                            </button>
-                            {perms.canDelete && (
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `الفاتورة ${inv.id}` })}
-                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                      {filteredInvoices.map((inv) => {
+                        const isPaid = inv.status === "مدفوع";
+                        return (
+                          <tr key={inv.id} className="hover:bg-slate-800/40 transition">
+                            <td className="p-3 font-mono font-semibold text-slate-300">{inv.id}</td>
+                            <td className="p-3 font-bold text-slate-100">{inv.tenant} ({inv.unitId})</td>
+                            <td className="p-3 text-slate-300">{inv.type}</td>
+                            <td className="p-3 font-bold text-white">{inv.amount.toLocaleString()} ج.م</td>
+                            <td className="p-3 text-slate-400">{inv.dueDate}</td>
+                            <td className="p-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  isPaid
+                                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                    : inv.status === "متأخر"
+                                      ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                      : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                }`}
                               >
-                                <Trash2 className="w-3 h-3" /> حذف
+                                {isPaid ? "محصّل (فاتورة)" : inv.status === "متأخر" ? "مطالبة متأخرة" : "مطالبة (مديونية)"}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center flex items-center justify-center gap-2">
+                              {perms.canManageBilling && !isPaid && (
+                                <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
+                                  تحصيل الآن
+                                </button>
+                              )}
+                              <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
+                                <Printer className="w-3 h-3" /> {isPaid ? "الإيصال" : "بيان مطالبة"}
                               </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                              {perms.canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `${isPaid ? "الفاتورة" : "المطالبة"} ${inv.id}` })}
+                                  className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                >
+                                  <Trash2 className="w-3 h-3" /> حذف
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1964,7 +1998,7 @@ export default function App() {
                     <Wrench className="w-5 h-5 text-amber-400" /> مركز الصيانة والخدمات الفنية
                   </h2>
                   <p className="text-xs text-slate-400">
-                    مسؤول الصيانة يحدد داخل العقد (وديعة الصيانة) أو خارج العقد (تسعير → موافقة → تنفيذ → تأكيد الحل → إصدار الفاتورة)
+                    مسؤول الصيانة يحدد داخل العقد (وديعة الصيانة) أو خارج العقد (تسعير → موافقة → تنفيذ → تأكيد الحل → إصدار مطالبة لحين التحصيل)
                   </p>
                 </div>
                 {perms.canManageTickets && (
@@ -2007,7 +2041,7 @@ export default function App() {
                   ))}
                 </KanbanColumn>
 
-                <KanbanColumn title="تم الحل وإصدار الفاتورة" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
+                <KanbanColumn title="تم الحل وإصدار المطالبة" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
                   {tickets.filter((t) => t.status === "resolved").map((ticket) => (
                     <TicketCard
                       key={ticket.id}
@@ -2719,7 +2753,7 @@ export default function App() {
       )}
 
       {showAddInvoiceModal && (
-        <Modal title="إضافة فاتورة جديدة" onClose={() => setShowAddInvoiceModal(false)}>
+        <Modal title="إضافة مطالبة / فاتورة جديدة" onClose={() => setShowAddInvoiceModal(false)}>
           <form onSubmit={handleAddInvoice} className="space-y-4 text-xs">
             <div>
               <label className="block text-slate-400 mb-1 font-semibold">الوحدة / الطرف</label>
@@ -2749,16 +2783,16 @@ export default function App() {
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">الحالة</label>
                 <select value={newInvoice.status} onChange={(e) => setNewInvoice({ ...newInvoice, status: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
-                  <option value="قيد الانتظار">قيد الانتظار</option>
-                  <option value="متأخر">متأخر</option>
-                  <option value="مدفوع">مدفوع</option>
+                  <option value="قيد الانتظار">مطالبة (مديونية غير محصلة)</option>
+                  <option value="متأخر">مطالبة متأخرة (مديونية)</option>
+                  <option value="مدفوع">محصّل بالفعل (في الخزينة)</option>
                 </select>
               </div>
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-2">
               <button type="button" onClick={() => setShowAddInvoiceModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
-              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ الفاتورة</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ السجل</button>
             </div>
           </form>
         </Modal>
@@ -2808,7 +2842,7 @@ export default function App() {
             </div>
 
             <p className="text-[11px] text-slate-400 bg-[#070F1B] p-2.5 rounded-xl border border-slate-800">
-              يُرحّل البلاغ إلى مسؤول الصيانة لتحديد هل هو داخل العقد (وديعة الصيانة) أم خارجه، وتحديد المبلغ وأخذ الموافقة ثم إصدار الفاتورة بعد الحل.
+              يُرحّل البلاغ إلى مسؤول الصيانة لتحديد هل هو داخل العقد (وديعة الصيانة) أم خارجه، وتحديد المبلغ وأخذ الموافقة ثم إصدار مطالبة بعد الحل لحين التحصيل.
             </p>
 
             <div className="pt-2 flex items-center justify-end gap-2">
@@ -2820,11 +2854,16 @@ export default function App() {
       )}
 
       {showInvoiceModal && selectedInvoice && (
-        <Modal title="معاينة إيصال سداد رقمي" onClose={() => setShowInvoiceModal(false)}>
+        <Modal
+          title={selectedInvoice.status === "مدفوع" ? "معاينة إيصال سداد رقمي" : "معاينة بيان مطالبة (مديونية)"}
+          onClose={() => setShowInvoiceModal(false)}
+        >
           <div className="bg-white text-slate-900 p-6 rounded-xl space-y-6 text-right font-sans">
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div>
-                <h3 className="text-xl font-black text-[#0B192C]">إيصال استلام نقدية / خدمات</h3>
+                <h3 className="text-xl font-black text-[#0B192C]">
+                  {selectedInvoice.status === "مدفوع" ? "إيصال استلام نقدية / خدمات" : "بيان مطالبة مالية (مديونية)"}
+                </h3>
                 <p className="text-xs text-slate-500">{mallConfig.mallName} - الإدارة التشغيلية</p>
               </div>
               <div className="text-left font-mono">
@@ -2835,7 +2874,7 @@ export default function App() {
 
             <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100">
               <div>
-                <p className="text-slate-400">استلمنا من:</p>
+                <p className="text-slate-400">{selectedInvoice.status === "مدفوع" ? "استلمنا من:" : "الطرف المطالب بالسداد:"}</p>
                 <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.tenant}</p>
               </div>
               <div>
@@ -2843,8 +2882,10 @@ export default function App() {
                 <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.unitId}</p>
               </div>
               <div>
-                <p className="text-slate-400">المبلغ:</p>
-                <p className="font-black text-emerald-600 text-base mt-0.5">{selectedInvoice.amount.toLocaleString()} جنيه مصري</p>
+                <p className="text-slate-400">{selectedInvoice.status === "مدفوع" ? "المبلغ المحصّل:" : "قيمة المطالبة:"}</p>
+                <p className={`font-black text-base mt-0.5 ${selectedInvoice.status === "مدفوع" ? "text-emerald-600" : "text-amber-600"}`}>
+                  {selectedInvoice.amount.toLocaleString()} جنيه مصري
+                </p>
               </div>
               <div>
                 <p className="text-slate-400">وذلك مقابل:</p>
@@ -2853,15 +2894,21 @@ export default function App() {
             </div>
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-              <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
-                <CheckCircle2 className="w-4 h-4" /> معتمد ومسدد رقمياً عبر نظام MMS
-              </div>
+              {selectedInvoice.status === "مدفوع" ? (
+                <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                  <CheckCircle2 className="w-4 h-4" /> محصّل ومقيد في الخزينة عبر نظام MMS
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-amber-600 font-bold">
+                  <AlertTriangle className="w-4 h-4" /> مطالبة قائمة لم تُحصّل بعد (مديونية)
+                </div>
+              )}
               <p>التاريخ: {selectedInvoice.paymentDate !== "-" ? selectedInvoice.paymentDate : selectedInvoice.dueDate}</p>
             </div>
 
             <div className="pt-2 flex justify-end gap-2">
               <button type="button" onClick={() => window.print()} className="bg-[#0B192C] text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-slate-800">
-                <Printer className="w-3.5 h-3.5 text-[#00D8F6]" /> طباعة الإيصال
+                <Printer className="w-3.5 h-3.5 text-[#00D8F6]" /> {selectedInvoice.status === "مدفوع" ? "طباعة الإيصال" : "طباعة بيان المطالبة"}
               </button>
             </div>
           </div>
@@ -3027,7 +3074,7 @@ function TicketCard({
           </>
         )}
         {ticket.invoiceId && (
-          <p className="text-cyan-300 font-mono">رقم الفاتورة الصادرة: {ticket.invoiceId}</p>
+          <p className="text-cyan-300 font-mono">رقم المطالبة الصادرة: {ticket.invoiceId}</p>
         )}
       </div>
 
@@ -3103,7 +3150,7 @@ function TicketCard({
           }`}
         >
           <FileCheck2 className="w-3.5 h-3.5" />
-          {isOutside ? "تم حل المشكلة وإصدار الفاتورة" : "تم حل المشكلة وإغلاق البلاغ"}
+          {isOutside ? "تم حل المشكلة وإصدار المطالبة" : "تم حل المشكلة وإغلاق البلاغ"}
         </button>
       )}
 
@@ -3122,7 +3169,7 @@ function TicketCard({
                 type="button"
                 disabled={!canIssueNow}
                 onClick={() => onMove("resolved")}
-                title={canIssueNow ? "تأكيد الحل وإصدار الفاتورة إن وجدت" : "يلزم تحديد التبعية وموافقة العميل أولاً"}
+                title={canIssueNow ? "تأكيد الحل وإصدار المطالبة إن وجدت" : "يلزم تحديد التبعية وموافقة العميل أولاً"}
                 className={`px-1 ${canIssueNow ? "text-emerald-400 hover:underline" : "text-slate-600 cursor-not-allowed"}`}
               >
                 تم الحل
