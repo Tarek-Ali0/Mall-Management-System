@@ -27,11 +27,15 @@ import {
   ExternalLink,
   Save,
   Pencil,
+  Users,
+  Lock,
+  LogOut,
+  KeyRound,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
 const DEFAULT_MALL_CONFIG = {
-  mallName: "مول الفيوم الجديدة",
+  mallName: "مول الماسة 1",
   floors: [
     { id: "ground", name: "الدور الأرضي", category: "تجاري (محلات)", unitsCount: 40, notes: "محلات تجارية رئيسية" },
     { id: "duplex", name: "دور الدوبليكس", category: "دوبليكس تجاري", unitsCount: 20, notes: "ملحق علوي لبعض الوحدات التجارية بالدور الأرضي" },
@@ -39,6 +43,71 @@ const DEFAULT_MALL_CONFIG = {
     { id: "second", name: "الدور الثاني", category: "إداري", unitsCount: 30, notes: "وحدات إدارية وخدمات" },
   ],
 };
+
+const ALL_PERMISSION_KEYS = [
+  { key: "canViewBilling", label: "عرض التحصيل والفواتير" },
+  { key: "canManageBilling", label: "إضافة وتحصيل الفواتير" },
+  { key: "canManageUnits", label: "إضافة وتعديل الوحدات والملاك" },
+  { key: "canManageTickets", label: "إدارة بلاغات الصيانة" },
+  { key: "canManageAnnouncements", label: "إرسال وإدارة التنبيهات" },
+  { key: "canManageSettings", label: "تعديل إعدادات المول والأدوار" },
+  { key: "canDelete", label: "حذف السجلات" },
+  { key: "canManageUsers", label: "إدارة المستخدمين والصلاحيات" },
+];
+
+const INITIAL_USERS = [
+  {
+    id: "USR-ADMIN",
+    name: "مدير النظام الرئيسي",
+    roleTitle: "إدارة المول",
+    badge: "Admin Access",
+    password: "admin",
+    permissions: {
+      canViewBilling: true,
+      canManageBilling: true,
+      canManageUnits: true,
+      canManageTickets: true,
+      canManageAnnouncements: true,
+      canManageSettings: true,
+      canDelete: true,
+      canManageUsers: true,
+    },
+  },
+  {
+    id: "USR-MAINT",
+    name: "مسؤول الصيانة والتشغيل",
+    roleTitle: "فريق الصيانة",
+    badge: "Maintenance",
+    password: "1234",
+    permissions: {
+      canViewBilling: false,
+      canManageBilling: false,
+      canManageUnits: false,
+      canManageTickets: true,
+      canManageAnnouncements: false,
+      canManageSettings: false,
+      canDelete: false,
+      canManageUsers: false,
+    },
+  },
+  {
+    id: "USR-ACC",
+    name: "مسؤول الحسابات والتحصيل",
+    roleTitle: "الحسابات",
+    badge: "Billing",
+    password: "1234",
+    permissions: {
+      canViewBilling: true,
+      canManageBilling: true,
+      canManageUnits: false,
+      canManageTickets: false,
+      canManageAnnouncements: true,
+      canManageSettings: false,
+      canDelete: false,
+      canManageUsers: false,
+    },
+  },
+];
 
 const INITIAL_UNITS = [
   {
@@ -182,17 +251,32 @@ const INITIAL_ANNOUNCEMENTS = [
   { id: 2, title: "مواعيد العمل الشتوية الخاصة بالمول", content: "تم تحديث مواعيد فتح وإغلاق أبواب المول الرئيسية لتكون من الساعة 9:00 صباحاً وحتى 11:00 مساءً.", date: "2026-11-20", priority: "عادي", target: "القطاع التجاري" },
 ];
 
-const ADMIN_PERMISSIONS = {
-  label: "إدارة المول",
-  badge: "Admin Access",
-  canViewBilling: true,
-  canManageBilling: true,
-  canManageUnits: true,
-  canManageTickets: true,
-  canDelete: true,
-  canManageAnnouncements: true,
-  canManageSettings: true,
-};
+const mapUserToDb = (u) => ({
+  id: u.id,
+  name: u.name,
+  role_title: u.roleTitle,
+  badge: u.badge,
+  password: u.password,
+  permissions: u.permissions,
+});
+
+const mapUserFromDb = (row) => ({
+  id: row.id,
+  name: row.name,
+  roleTitle: row.role_title || "مستخدم",
+  badge: row.badge || "Staff",
+  password: row.password || "1234",
+  permissions: {
+    canViewBilling: Boolean(row.permissions?.canViewBilling),
+    canManageBilling: Boolean(row.permissions?.canManageBilling),
+    canManageUnits: Boolean(row.permissions?.canManageUnits),
+    canManageTickets: Boolean(row.permissions?.canManageTickets),
+    canManageAnnouncements: Boolean(row.permissions?.canManageAnnouncements),
+    canManageSettings: Boolean(row.permissions?.canManageSettings),
+    canDelete: Boolean(row.permissions?.canDelete),
+    canManageUsers: Boolean(row.permissions?.canManageUsers),
+  },
+});
 
 const mapUnitToDb = (u) => ({
   id: u.id,
@@ -285,7 +369,11 @@ const mapTicketFromDb = (row) => ({
 });
 
 export default function App() {
-  const currentRole = ADMIN_PERMISSIONS;
+  const [users, setUsers] = useState(INITIAL_USERS);
+  const [selectedUserId, setSelectedUserId] = useState(INITIAL_USERS[0].id);
+  const [loginPasswordInput, setLoginPasswordInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loggedInUserId, setLoggedInUserId] = useState("");
 
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
@@ -313,6 +401,23 @@ export default function App() {
 
   const [unitFilter, setUnitFilter] = useState("الكل");
   const [invoiceFilter, setInvoiceFilter] = useState("الكل");
+
+  const [newUserForm, setNewUserForm] = useState({
+    name: "",
+    roleTitle: "موظف تشغيل",
+    badge: "Staff",
+    password: "",
+    permissions: {
+      canViewBilling: true,
+      canManageBilling: false,
+      canManageUnits: true,
+      canManageTickets: true,
+      canManageAnnouncements: false,
+      canManageSettings: false,
+      canDelete: false,
+      canManageUsers: false,
+    },
+  });
 
   const [newUnit, setNewUnit] = useState({
     id: "",
@@ -357,15 +462,32 @@ export default function App() {
     target: "جميع المستأجرين",
   });
 
+  const currentUser = useMemo(
+    () => users.find((u) => u.id === loggedInUserId) || null,
+    [users, loggedInUserId]
+  );
+
+  const handleSelectTab = useCallback((tabName) => {
+    setActiveTab(tabName);
+    setSearchQuery("");
+    if (tabName !== "units") {
+      setUnitFilter("الكل");
+    }
+    if (tabName !== "billing") {
+      setInvoiceFilter("الكل");
+    }
+  }, []);
+
   const loadFromSupabase = useCallback(async () => {
     if (!supabase) return;
 
-    const [settingsRes, unitsRes, invoicesRes, ticketsRes, announcementsRes] = await Promise.all([
+    const [settingsRes, unitsRes, invoicesRes, ticketsRes, announcementsRes, usersRes] = await Promise.all([
       supabase.from("mall_settings").select("*").eq("id", 1).maybeSingle(),
       supabase.from("units").select("*"),
       supabase.from("invoices").select("*"),
       supabase.from("tickets").select("*"),
       supabase.from("announcements").select("*").order("id", { ascending: false }),
+      supabase.from("portal_users").select("*"),
     ]);
 
     if (unitsRes.error || invoicesRes.error || ticketsRes.error || announcementsRes.error) {
@@ -382,6 +504,17 @@ export default function App() {
       };
       setMallConfig(loadedConfig);
       setDraftConfig(loadedConfig);
+    }
+
+    if (!usersRes.error) {
+      if (usersRes.data.length === 0) {
+        await supabase.from("portal_users").insert(INITIAL_USERS.map(mapUserToDb));
+        setUsers(INITIAL_USERS);
+      } else {
+        const mapped = usersRes.data.map(mapUserFromDb);
+        setUsers(mapped);
+        setSelectedUserId((prev) => (mapped.some((m) => m.id === prev) ? prev : mapped[0].id));
+      }
     }
 
     if (unitsRes.data.length === 0) {
@@ -416,6 +549,94 @@ export default function App() {
   useEffect(() => {
     loadFromSupabase();
   }, [loadFromSupabase]);
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    const target = users.find((u) => u.id === selectedUserId);
+    if (!target) {
+      setLoginError("اختر مستخدماً صحيحاً.");
+      return;
+    }
+    if (String(target.password || "") !== loginPasswordInput) {
+      setLoginError("كلمة المرور غير صحيحة لهذا المستخدم.");
+      return;
+    }
+    setLoginError("");
+    setLoginPasswordInput("");
+    setSearchQuery("");
+    setActiveTab("overview");
+    setLoggedInUserId(target.id);
+  };
+
+  const handleLogoutUser = () => {
+    setLoggedInUserId("");
+    setLoginPasswordInput("");
+    setLoginError("");
+    setSearchQuery("");
+    setActiveTab("overview");
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    if (!newUserForm.name.trim() || !newUserForm.password.trim()) return;
+
+    const created = {
+      id: `USR-${Math.floor(1000 + Math.random() * 8999)}`,
+      name: newUserForm.name.trim(),
+      roleTitle: newUserForm.roleTitle.trim() || "مستخدم",
+      badge: newUserForm.badge.trim() || "Custom Role",
+      password: newUserForm.password.trim(),
+      permissions: { ...newUserForm.permissions },
+    };
+
+    setUsers((prev) => [...prev, created]);
+
+    if (supabase) {
+      const { error } = await supabase.from("portal_users").upsert(mapUserToDb(created));
+      setNoticeMessage(
+        error
+          ? `تم إنشاء المستخدم محلياً لكن فشل حفظه في Supabase: ${error.message}`
+          : `تم إنشاء المستخدم "${created.name}" وحفظ صلاحياته في قاعدة البيانات.`
+      );
+    } else {
+      setNoticeMessage(`تم إنشاء المستخدم "${created.name}".`);
+    }
+
+    setNewUserForm({
+      name: "",
+      roleTitle: "موظف تشغيل",
+      badge: "Staff",
+      password: "",
+      permissions: {
+        canViewBilling: true,
+        canManageBilling: false,
+        canManageUnits: true,
+        canManageTickets: true,
+        canManageAnnouncements: false,
+        canManageSettings: false,
+        canDelete: false,
+        canManageUsers: false,
+      },
+    });
+  };
+
+  const handleToggleUserPermission = async (userId, permKey) => {
+    const target = users.find((u) => u.id === userId);
+    if (!target) return;
+
+    const nextPerms = {
+      ...target.permissions,
+      [permKey]: !target.permissions[permKey],
+    };
+
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, permissions: nextPerms } : u))
+    );
+
+    if (supabase) {
+      await supabase.from("portal_users").update({ permissions: nextPerms }).eq("id", userId);
+    }
+  };
 
   const totalConfiguredUnits = useMemo(() => {
     const sum = mallConfig.floors.reduce((acc, f) => acc + (Number(f.unitsCount) || 0), 0);
@@ -800,6 +1021,7 @@ export default function App() {
       invoice: "invoices",
       ticket: "tickets",
       announcement: "announcements",
+      user: "portal_users",
     };
 
     if (kind === "unit") setUnits((prev) => prev.filter((item) => item.id !== id));
@@ -812,6 +1034,7 @@ export default function App() {
     }
     if (kind === "ticket") setTickets((prev) => prev.filter((item) => item.id !== id));
     if (kind === "announcement") setAnnouncements((prev) => prev.filter((item) => item.id !== id));
+    if (kind === "user") setUsers((prev) => prev.filter((item) => item.id !== id));
 
     const tableName = tableMap[kind];
     if (supabase && tableName) {
@@ -880,6 +1103,92 @@ export default function App() {
     return ["الكل", "ملاك", "مستأجرون", "مؤجرة للغير", ...dynamicFloorNames, "تنبيهات"];
   }, [mallConfig]);
 
+  if (!currentUser) {
+    const chosenUser = users.find((u) => u.id === selectedUserId) || users[0];
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 flex items-center justify-center p-4 font-sans">
+        <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-5 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#00D8F6] to-blue-600 flex items-center justify-center font-bold text-slate-950 text-lg">
+                V
+              </div>
+              <div>
+                <h1 className="text-base font-black text-white">تسجيل دخول النظام</h1>
+                <p className="text-[11px] text-slate-400">اختر المستخدم وأدخل كلمة المرور</p>
+              </div>
+            </div>
+            <Link href="/portal" className="text-xs text-[#00D8F6] hover:underline inline-flex items-center gap-1">
+              بوابة الوحدة <ExternalLink className="w-3 h-3" />
+            </Link>
+          </div>
+
+          <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-slate-300 mb-1.5 font-semibold">اختيار المستخدم</label>
+              <select
+                value={selectedUserId}
+                onChange={(e) => {
+                  setSelectedUserId(e.target.value);
+                  setLoginError("");
+                }}
+                className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} — {u.roleTitle}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {chosenUser && (
+              <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3 space-y-1.5">
+                <p className="text-[10px] text-slate-400">صلاحيات الحساب المحدد:</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {ALL_PERMISSION_KEYS.filter((p) => chosenUser.permissions[p.key]).map((p) => (
+                    <span
+                      key={p.key}
+                      className="px-2 py-0.5 rounded bg-[#00D8F6]/10 text-[#00D8F6] border border-[#00D8F6]/20 text-[10px] font-semibold"
+                    >
+                      {p.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-slate-300 mb-1.5 font-semibold">كلمة المرور</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  required
+                  type="password"
+                  value={loginPasswordInput}
+                  onChange={(e) => setLoginPasswordInput(e.target.value)}
+                  placeholder="أدخل كلمة المرور"
+                  className="w-full bg-[#070F1B] border border-slate-700 rounded-xl pr-10 pl-3 py-3 text-slate-100 focus:outline-none focus:border-[#00D8F6]"
+                />
+              </div>
+            </div>
+
+            {loginError && <p className="text-rose-400 text-[11px] font-semibold">{loginError}</p>}
+
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold py-2.5 rounded-xl hover:brightness-110 transition"
+            >
+              دخول إلى لوحة التحكم
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  const perms = currentUser.permissions;
+
   return (
     <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-100 text-right flex flex-col md:flex-row selection:bg-[#00D8F6] selection:text-slate-950 font-sans">
       <aside className="w-full md:w-72 bg-[#0B192C] border-b md:border-b-0 md:border-l border-slate-800 flex flex-col justify-between shrink-0">
@@ -913,29 +1222,36 @@ export default function App() {
           </div>
 
           <nav className="p-4 space-y-1.5">
-            <NavItem icon={<LayoutDashboard className="w-5 h-5" />} label="لوحة التحكم الرئيسية" active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
-            <NavItem icon={<Building2 className="w-5 h-5" />} label="الوحدات والملاك والعقود" active={activeTab === "units"} onClick={() => setActiveTab("units")} badge={units.length} />
-            <NavItem
-              icon={<CreditCard className="w-5 h-5" />}
-              label="التحصيل والفواتير"
-              active={activeTab === "billing"}
-              onClick={() => setActiveTab("billing")}
-              badge={invoices.filter((i) => i.status === "متأخر").length}
-              badgeColor="bg-rose-500/20 text-rose-400 border-rose-500/30"
-            />
+            <NavItem icon={<LayoutDashboard className="w-5 h-5" />} label="لوحة التحكم الرئيسية" active={activeTab === "overview"} onClick={() => handleSelectTab("overview")} />
+            <NavItem icon={<Building2 className="w-5 h-5" />} label="الوحدات والملاك والعقود" active={activeTab === "units"} onClick={() => handleSelectTab("units")} badge={units.length} />
+            {perms.canViewBilling && (
+              <NavItem
+                icon={<CreditCard className="w-5 h-5" />}
+                label="التحصيل والفواتير"
+                active={activeTab === "billing"}
+                onClick={() => handleSelectTab("billing")}
+                badge={invoices.filter((i) => i.status === "متأخر").length}
+                badgeColor="bg-rose-500/20 text-rose-400 border-rose-500/30"
+              />
+            )}
             <NavItem
               icon={<Wrench className="w-5 h-5" />}
               label="مركز الصيانة والخدمات"
               active={activeTab === "maintenance"}
-              onClick={() => setActiveTab("maintenance")}
+              onClick={() => handleSelectTab("maintenance")}
               badge={dynamicKpis.openTicketsCount}
               badgeColor="bg-amber-500/20 text-amber-400 border-amber-500/30"
             />
-            <NavItem icon={<BellRing className="w-5 h-5" />} label="التنبيهات والإعلانات" active={activeTab === "announcements"} onClick={() => setActiveTab("announcements")} />
-            <NavItem icon={<Settings className="w-5 h-5" />} label="الإعدادات" active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
+            <NavItem icon={<BellRing className="w-5 h-5" />} label="التنبيهات والإعلانات" active={activeTab === "announcements"} onClick={() => handleSelectTab("announcements")} />
+            {perms.canManageUsers && (
+              <NavItem icon={<Users className="w-5 h-5" />} label="المستخدمون والصلاحيات" active={activeTab === "users"} onClick={() => handleSelectTab("users")} badge={users.length} />
+            )}
+            {perms.canManageSettings && (
+              <NavItem icon={<Settings className="w-5 h-5" />} label="الإعدادات" active={activeTab === "settings"} onClick={() => handleSelectTab("settings")} />
+            )}
           </nav>
 
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-4 space-y-2">
             <Link
               href="/portal"
               className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold bg-[#070F1B] hover:bg-slate-800 text-[#00D8F6] border border-[#00D8F6]/30 transition"
@@ -945,6 +1261,16 @@ export default function App() {
               </span>
               <ExternalLink className="w-3.5 h-3.5" />
             </Link>
+
+            <button
+              type="button"
+              onClick={handleLogoutUser}
+              className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800/70 hover:bg-slate-800 text-rose-400 border border-slate-700/60 transition"
+            >
+              <span className="flex items-center gap-2">
+                <LogOut className="w-3.5 h-3.5" /> تبديل المستخدم / خروج
+              </span>
+            </button>
           </div>
         </div>
 
@@ -952,8 +1278,8 @@ export default function App() {
           <div className="bg-[#1E3E62]/30 rounded-xl p-3 border border-slate-700/50 flex items-center gap-3">
             <ShieldCheck className="w-7 h-7 text-[#00D8F6] shrink-0" />
             <div className="text-xs">
-              <p className="font-semibold text-slate-200">{currentRole.label}</p>
-              <p className="text-[10px] text-slate-400">{dbConnected ? "متصل بـ Supabase" : "حماية وتأمين البيانات 99.9%"}</p>
+              <p className="font-semibold text-slate-200">{currentUser.name}</p>
+              <p className="text-[10px] text-slate-400">{currentUser.roleTitle}</p>
             </div>
           </div>
         </div>
@@ -961,33 +1287,51 @@ export default function App() {
 
       <main className="flex-1 flex flex-col min-w-0">
         <header className="min-h-16 bg-[#0B192C]/90 backdrop-blur border-b border-slate-800 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-10">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="ابحث عن وحدة، مالك، مستأجر، أو فاتورة..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#070F1B] border border-slate-700/80 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#00D8F6]"
-            />
+          <div className="relative w-full sm:max-w-md flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="ابحث عن وحدة، مالك، مستأجر، أو فاتورة..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#070F1B] border border-slate-700/80 rounded-xl pr-10 pl-8 py-2 text-xs text-slate-200 focus:outline-none focus:border-[#00D8F6]"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  title="مسح البحث"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5 mr-auto sm:mr-0">
-            <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 hover:brightness-110 transition">
-              <Plus className="w-4 h-4" /> وحدة جديدة
-            </button>
+            {perms.canManageUnits && (
+              <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                <Plus className="w-4 h-4" /> وحدة جديدة
+              </button>
+            )}
 
-            <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition">
-              <Send className="w-3.5 h-3.5 text-[#00D8F6]" /> إرسال تنبيه
-            </button>
+            {perms.canManageAnnouncements && (
+              <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition">
+                <Send className="w-3.5 h-3.5 text-[#00D8F6]" /> إرسال تنبيه
+              </button>
+            )}
 
             <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block"></div>
 
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white border border-white/10">إم</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center font-bold text-xs text-white border border-white/10">
+                {currentUser.name.slice(0, 2)}
+              </div>
               <div className="hidden lg:block text-xs">
-                <p className="font-semibold text-slate-200">{currentRole.label}</p>
-                <p className="text-[10px] text-[#00D8F6]">{currentRole.badge}</p>
+                <p className="font-semibold text-slate-200">{currentUser.name}</p>
+                <p className="text-[10px] text-[#00D8F6]">{currentUser.badge}</p>
               </div>
             </div>
           </div>
@@ -1033,14 +1377,25 @@ export default function App() {
                   badge="تحديث لحظي"
                   badgeType="success"
                 />
-                <KpiCard
-                  title="تحصيل الفواتير (الشهر الحالي)"
-                  value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
-                  subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
-                  icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
-                  badge={`متبقي ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
-                  badgeType="warning"
-                />
+                {perms.canViewBilling ? (
+                  <KpiCard
+                    title="تحصيل الفواتير (الشهر الحالي)"
+                    value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
+                    subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م`}
+                    icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
+                    badge={`متبقي ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
+                    badgeType="warning"
+                  />
+                ) : (
+                  <KpiCard
+                    title="صلاحية الحساب الحالي"
+                    value={currentUser.roleTitle}
+                    subtext="العرض المالي مقيد حسب الصلاحيات"
+                    icon={<KeyRound className="w-6 h-6 text-emerald-400" />}
+                    badge={currentUser.badge}
+                    badgeType="neutral"
+                  />
+                )}
                 <KpiCard
                   title="طلبات الصيانة المفتوحة"
                   value={`${dynamicKpis.openTicketsCount} طلبات`}
@@ -1098,7 +1453,7 @@ export default function App() {
                       <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                         <Wrench className="w-3.5 h-3.5 text-amber-400" /> آخر طلبات الصيانة
                       </h4>
-                      <button type="button" onClick={() => setActiveTab("maintenance")} className="text-[10px] text-[#00D8F6] hover:underline">عرض الكل</button>
+                      <button type="button" onClick={() => handleSelectTab("maintenance")} className="text-[10px] text-[#00D8F6] hover:underline">عرض الكل</button>
                     </div>
                     <div className="space-y-2.5">
                       {tickets.slice(0, 3).map((ticket) => (
@@ -1130,9 +1485,11 @@ export default function App() {
                   </h2>
                   <p className="text-xs text-slate-400">التمييز بين الملاك والمستأجرين وتأجير المالك لوحدته للغير</p>
                 </div>
-                <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
-                  <Plus className="w-4 h-4" /> إضافة وحدة جديدة
-                </button>
+                {perms.canManageUnits && (
+                  <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                    <Plus className="w-4 h-4" /> إضافة وحدة جديدة
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -1200,20 +1557,24 @@ export default function App() {
                             </td>
                             <td className="p-4 text-center">
                               <div className="inline-flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditUnitModal(unit)}
-                                  className="bg-[#00D8F6]/10 hover:bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                                >
-                                  <Pencil className="w-3 h-3" /> تعديل
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
-                                  className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                                >
-                                  <Trash2 className="w-3 h-3" /> حذف
-                                </button>
+                                {perms.canManageUnits && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditUnitModal(unit)}
+                                    className="bg-[#00D8F6]/10 hover:bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                  >
+                                    <Pencil className="w-3 h-3" /> تعديل
+                                  </button>
+                                )}
+                                {perms.canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget({ kind: "unit", id: unit.id, label: `الوحدة ${unit.id} (${unit.tenant})` })}
+                                    className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2.5 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                  >
+                                    <Trash2 className="w-3 h-3" /> حذف
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1226,7 +1587,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === "billing" && (
+          {activeTab === "billing" && perms.canViewBilling && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
@@ -1249,9 +1610,11 @@ export default function App() {
                     <CreditCard className="w-4 h-4 text-[#00D8F6]" /> سجل الفواتير والإيصالات الرقمية
                   </h3>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setShowAddInvoiceModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:brightness-110 transition">
-                      <Plus className="w-3.5 h-3.5" /> فاتورة جديدة
-                    </button>
+                    {perms.canManageBilling && (
+                      <button type="button" onClick={() => setShowAddInvoiceModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:brightness-110 transition">
+                        <Plus className="w-3.5 h-3.5" /> فاتورة جديدة
+                      </button>
+                    )}
                     {["الكل", "مدفوع", "متأخر", "قيد الانتظار"].map((filter) => (
                       <button key={filter} type="button" onClick={() => setInvoiceFilter(filter)} className={`px-2.5 py-1 rounded-lg text-xs transition ${invoiceFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
                         {filter}
@@ -1287,7 +1650,7 @@ export default function App() {
                             </span>
                           </td>
                           <td className="p-3 text-center flex items-center justify-center gap-2">
-                            {inv.status !== "مدفوع" && (
+                            {perms.canManageBilling && inv.status !== "مدفوع" && (
                               <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
                                 تحصيل الآن
                               </button>
@@ -1295,13 +1658,15 @@ export default function App() {
                             <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
                               <Printer className="w-3 h-3" /> الإيصال
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `الفاتورة ${inv.id}` })}
-                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                            >
-                              <Trash2 className="w-3 h-3" /> حذف
-                            </button>
+                            {perms.canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget({ kind: "invoice", id: inv.id, label: `الفاتورة ${inv.id}` })}
+                                className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                              >
+                                <Trash2 className="w-3 h-3" /> حذف
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -1321,9 +1686,11 @@ export default function App() {
                   </h2>
                   <p className="text-xs text-slate-400">الصيانة المدفوعة خارج العقد لا تُغلق إلى «تم الحل» قبل تأكيد الدفع</p>
                 </div>
-                <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
-                  <Plus className="w-4 h-4" /> بلاغ صيانة جديد
-                </button>
+                {perms.canManageTickets && (
+                  <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                    <Plus className="w-4 h-4" /> بلاغ صيانة جديد
+                  </button>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1332,6 +1699,8 @@ export default function App() {
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
+                      canManageTickets={perms.canManageTickets}
+                      canDelete={perms.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
                       onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
@@ -1344,6 +1713,8 @@ export default function App() {
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
+                      canManageTickets={perms.canManageTickets}
+                      canDelete={perms.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
                       onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
@@ -1356,6 +1727,8 @@ export default function App() {
                     <TicketCard
                       key={ticket.id}
                       ticket={ticket}
+                      canManageTickets={perms.canManageTickets}
+                      canDelete={perms.canDelete}
                       onMove={(status) => moveTicket(ticket.id, status)}
                       onMarkPaid={() => handleMarkTicketPaid(ticket.id)}
                       onDelete={() => setDeleteTarget({ kind: "ticket", id: ticket.id, label: `بلاغ الصيانة ${ticket.id}` })}
@@ -1375,9 +1748,11 @@ export default function App() {
                   </h2>
                   <p className="text-xs text-slate-400">بث الإشعارات والتعليمات للملاك والمستأجرين</p>
                 </div>
-                <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
-                  <Plus className="w-4 h-4" /> إعلان جديد
-                </button>
+                {perms.canManageAnnouncements && (
+                  <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                    <Plus className="w-4 h-4" /> إعلان جديد
+                  </button>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -1390,13 +1765,15 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[11px] text-slate-400">{item.date}</span>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
-                          className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
-                        >
-                          <Trash2 className="w-3 h-3" /> حذف
-                        </button>
+                        {perms.canDelete && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget({ kind: "announcement", id: item.id, label: `التنبيه "${item.title}"` })}
+                            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 transition"
+                          >
+                            <Trash2 className="w-3 h-3" /> حذف
+                          </button>
+                        )}
                       </div>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">{item.content}</p>
@@ -1410,7 +1787,152 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === "settings" && (
+          {activeTab === "users" && perms.canManageUsers && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 text-xs">
+              <form onSubmit={handleCreateUser} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div className="border-b border-slate-800 pb-3">
+                  <h2 className="text-base font-bold text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[#00D8F6]" /> إنشاء مستخدم وتحديد صلاحياته
+                  </h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">حدد بيانات المستخدم والصلاحيات المسموحة له قبل الحفظ</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">اسم المستخدم</label>
+                    <input
+                      required
+                      type="text"
+                      value={newUserForm.name}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                      placeholder="مثال: م. سارة أحمد"
+                      className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">كلمة المرور</label>
+                    <input
+                      required
+                      type="text"
+                      value={newUserForm.password}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                      placeholder="مثال: 5566"
+                      className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">المسمى الوظيفي / الدور</label>
+                    <input
+                      type="text"
+                      value={newUserForm.roleTitle}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, roleTitle: e.target.value })}
+                      placeholder="مشرف تشغيل"
+                      className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1 font-semibold">شارة الصلاحية</label>
+                    <input
+                      type="text"
+                      value={newUserForm.badge}
+                      onChange={(e) => setNewUserForm({ ...newUserForm, badge: e.target.value })}
+                      placeholder="Operations"
+                      className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200"
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-[#070F1B] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                  <p className="font-bold text-slate-200">تحديد الصلاحيات:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {ALL_PERMISSION_KEYS.map((item) => (
+                      <label key={item.key} className="flex items-center gap-2 text-slate-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(newUserForm.permissions[item.key])}
+                          onChange={(e) =>
+                            setNewUserForm({
+                              ...newUserForm,
+                              permissions: {
+                                ...newUserForm.permissions,
+                                [item.key]: e.target.checked,
+                              },
+                            })
+                          }
+                          className="rounded border-slate-600"
+                        />
+                        <span>{item.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2.5 rounded-xl inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" /> حفظ المستخدم بالصلاحيات
+                </button>
+              </form>
+
+              <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-3">
+                <div className="border-b border-slate-800 pb-3">
+                  <h2 className="text-base font-bold text-white">المستخدمون الحاليون وتعديل صلاحياتهم</h2>
+                  <p className="text-[11px] text-slate-400 mt-0.5">يمكن تبديل أي صلاحية فوراً لأي مستخدم</p>
+                </div>
+
+                <div className="space-y-3">
+                  {users.map((u) => (
+                    <div key={u.id} className="bg-[#070F1B] border border-slate-800 rounded-xl p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-white text-sm">{u.name}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {u.roleTitle} • باسورد: <span className="font-mono text-[#00D8F6]">{u.password}</span>
+                          </p>
+                        </div>
+                        {u.id !== currentUser.id && perms.canDelete && (
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget({ kind: "user", id: u.id, label: `المستخدم ${u.name}` })}
+                            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 px-2 py-1 rounded text-[10px] font-bold inline-flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3 h-3" /> حذف
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {ALL_PERMISSION_KEYS.map((p) => {
+                          const active = Boolean(u.permissions[p.key]);
+                          return (
+                            <button
+                              key={p.key}
+                              type="button"
+                              onClick={() => handleToggleUserPermission(u.id, p.key)}
+                              className={`px-2 py-1 rounded text-[10px] font-semibold border transition ${
+                                active
+                                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                                  : "bg-slate-800/70 text-slate-500 border-slate-700"
+                              }`}
+                            >
+                              {active ? "✓ " : "✕ "}
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "settings" && perms.canManageSettings && (
             <form onSubmit={handleSaveSettings} className="bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-5 text-xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
                 <div>
@@ -2122,7 +2644,7 @@ function KanbanColumn({ title, count, color, children }) {
   );
 }
 
-function TicketCard({ ticket, onMove, onMarkPaid, onDelete }) {
+function TicketCard({ ticket, canManageTickets, canDelete, onMove, onMarkPaid, onDelete }) {
   const isUnpaidPaidTicket = ticket.billingType === "مدفوع" && ticket.paymentStatus !== "مدفوع";
 
   return (
@@ -2133,14 +2655,16 @@ function TicketCard({ ticket, onMove, onMarkPaid, onDelete }) {
           <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
             {ticket.priority}
           </span>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
-            title="حذف البلاغ"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="text-slate-400 hover:text-rose-400 p-0.5 rounded transition"
+              title="حذف البلاغ"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -2156,7 +2680,7 @@ function TicketCard({ ticket, onMove, onMarkPaid, onDelete }) {
           <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">ضمن عقد الصيانة</span>
         )}
 
-        {isUnpaidPaidTicket && (
+        {canManageTickets && isUnpaidPaidTicket && (
           <button
             type="button"
             onClick={onMarkPaid}
@@ -2167,28 +2691,30 @@ function TicketCard({ ticket, onMove, onMarkPaid, onDelete }) {
         )}
       </div>
 
-      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
-        <span className="text-slate-400">{ticket.date}</span>
-        <div className="flex items-center gap-1">
-          {ticket.status !== "new" && (
-            <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>
-          )}
-          {ticket.status !== "in_progress" && (
-            <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>
-          )}
-          {ticket.status !== "resolved" && (
-            <button
-              type="button"
-              disabled={isUnpaidPaidTicket}
-              onClick={() => onMove("resolved")}
-              title={isUnpaidPaidTicket ? "يلزم تأكيد الدفع أولاً لإغلاق البلاغ" : "نقل إلى تم الحل"}
-              className={`px-1 ${isUnpaidPaidTicket ? "text-slate-600 cursor-not-allowed" : "text-emerald-400 hover:underline"}`}
-            >
-              تم الحل
-            </button>
-          )}
+      {canManageTickets && (
+        <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+          <span className="text-slate-400">{ticket.date}</span>
+          <div className="flex items-center gap-1">
+            {ticket.status !== "new" && (
+              <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>
+            )}
+            {ticket.status !== "in_progress" && (
+              <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>
+            )}
+            {ticket.status !== "resolved" && (
+              <button
+                type="button"
+                disabled={isUnpaidPaidTicket}
+                onClick={() => onMove("resolved")}
+                title={isUnpaidPaidTicket ? "يلزم تأكيد الدفع أولاً لإغلاق البلاغ" : "نقل إلى تم الحل"}
+                className={`px-1 ${isUnpaidPaidTicket ? "text-slate-600 cursor-not-allowed" : "text-emerald-400 hover:underline"}`}
+              >
+                تم الحل
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
