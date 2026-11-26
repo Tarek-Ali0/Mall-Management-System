@@ -485,4 +485,660 @@ export default function App() {
               <div className="relative bg-gradient-to-r from-[#1E3E62] via-[#0B192C] to-[#070F1B] rounded-2xl p-6 border border-slate-700/60 overflow-hidden shadow-xl">
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00D8F6] bg-[#00D8F6]/10 px-2.5 py-0.5 rounded-full border border-[#00D8F6]/20 mb
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#00D8F6] bg-[#00D8F6]/10 px-2.5 py-0.5 rounded-full border border-[#00D8F6]/20 mb-2">
+                      <Sparkles className="w-3 h-3" /> نظام الإدارة التشغيلي الموحد
+                    </span>
+                    <h2 className="text-2xl font-black text-white">لوحة تحكم مول الفيوم الجديدة</h2>
+                    <p className="text-slate-300 text-xs mt-1 max-w-xl">
+                      متابعة لحظية للأداء المالي، نسبة الإشغال، تذاكر الصيانة، وعقود المستأجرين عبر منصة Valict.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs bg-[#070F1B]/70 p-3 rounded-xl border border-slate-700/50">
+                    <Calendar className="w-4 h-4 text-[#00D8F6]" />
+                    <div>
+                      <p className="text-slate-400 text-[10px]">تاريخ التشغيل</p>
+                      <p className="font-bold text-slate-200">نوفمبر 2026</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <KpiCard
+                  title="إجمالي الوحدات والإشغال"
+                  value={`${dynamicKpis.occupancyRate}%`}
+                  subtext={`${dynamicKpis.occupiedCount} مشغولة من أصل ${TOTAL_MALL_UNITS} (${TOTAL_MALL_UNITS - dynamicKpis.occupiedCount} شاغرة)`}
+                  icon={<Building2 className="w-6 h-6 text-[#00D8F6]" />}
+                  badge="تحديث لحظي"
+                  badgeType="success"
+                />
+                <KpiCard
+                  title="تحصيل الإيجارات (الشهر الحالي)"
+                  value={`${dynamicKpis.totalCollected.toLocaleString()} ج.م`}
+                  subtext={`من إجمالي ${dynamicKpis.totalBilled.toLocaleString()} ج.م (${Math.round((dynamicKpis.totalCollected / dynamicKpis.totalBilled) * 100 || 0)}%)`}
+                  icon={<DollarSign className="w-6 h-6 text-emerald-400" />}
+                  badge={`متبقي ${dynamicKpis.totalPending.toLocaleString()} ج.م`}
+                  badgeType="warning"
+                />
+                <KpiCard
+                  title="طلبات الصيانة المفتوحة"
+                  value={`${dynamicKpis.openTicketsCount} طلبات`}
+                  subtext="متابعة الأعطال الفنية والبلاغات"
+                  icon={<Wrench className="w-6 h-6 text-amber-400" />}
+                  badge="تحديث الكانبان"
+                  badgeType="neutral"
+                />
+                <KpiCard
+                  title="عقود تنتهي قريباً (30 يوم)"
+                  value={`${dynamicKpis.expiringLeasesCount} عقود`}
+                  subtext="تتطلب متابعة وإعادة التجديد"
+                  icon={<AlertTriangle className="w-6 h-6 text-rose-400" />}
+                  badge="إجراء مطلوب"
+                  badgeType="danger"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-[#0B192C] border border-slate-800 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4 text-[#00D8F6]" />
+                        تحليل التدفق النقدي والتحصيل الشهري
+                      </h3>
+                      <p className="text-[11px] text-slate-400">مقارنة التحصيل الشهري خلال 6 أشهر</p>
+                    </div>
+                    <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1 rounded-lg border border-slate-700">بالجنيه المصري</span>
+                  </div>
+
+                  <div className="grid grid-cols-6 gap-2 sm:gap-3 pt-4 px-1 items-end h-52">
+                    {[
+                      { month: "يونيو", amount: 410 },
+                      { month: "يوليو", amount: 430 },
+                      { month: "أغسطس", amount: 460 },
+                      { month: "سبتمبر", amount: 440 },
+                      { month: "أكتوبر", amount: 490 },
+                      { month: "نوفمبر", amount: Math.round(dynamicKpis.totalCollected / 1000) },
+                    ].map((item) => (
+                      <div key={item.month} className="flex flex-col items-center gap-2 h-full justify-end">
+                        <span className="text-[10px] text-slate-300 font-bold">{item.amount}k</span>
+                        <div className="w-full max-w-[38px] bg-slate-800/90 rounded-t-lg h-36 flex items-end overflow-hidden">
+                          <div className="w-full bg-gradient-to-t from-blue-700 to-[#00D8F6] rounded-t-lg" style={{ height: `${Math.min(100, Math.max(15, (item.amount / 550) * 100))}%` }}></div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-medium">{item.month}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
+                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <Wrench className="w-3.5 h-3.5 text-amber-400" /> آخر طلبات الصيانة
+                      </h4>
+                      <button type="button" onClick={() => setActiveTab("maintenance")} className="text-[10px] text-[#00D8F6] hover:underline">عرض الكل</button>
+                    </div>
+                    <div className="space-y-2.5">
+                      {tickets.slice(0, 3).map((ticket) => (
+                        <div key={ticket.id} className="bg-[#070F1B] p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-200">{ticket.title}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">الوحدة: {ticket.unitId} • {ticket.date}</p>
+                          </div>
+                          <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-slate-800 text-slate-300 border-slate-700"}`}>
+                            {ticket.priority}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "units" && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-[#00D8F6]" /> دليل الوحدات والعقود
+                  </h2>
+                  <p className="text-xs text-slate-400">إدارة المستأجرين، عقود الإيجار، وتفاصيل المساحات</p>
+                </div>
+                <button type="button" onClick={() => setShowAddUnitModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                  <Plus className="w-4 h-4" /> إضافة وحدة جديدة
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {["الكل", "الدور الأرضي", "الدور الأول", "تنبيهات"].map((filter) => (
+                  <button key={filter} type="button" onClick={() => setUnitFilter(filter)} className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition ${unitFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold border-[#00D8F6]" : "bg-[#0B192C] text-slate-300 border-slate-800 hover:border-slate-700"}`}>
+                    {filter === "تنبيهات" ? "تنبيهات التجديد" : filter}
+                  </button>
+                ))}
+              </div>
+
+              <div className="bg-[#0B192C] border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-[#070F1B] text-slate-400 border-b border-slate-800 font-semibold">
+                      <tr>
+                        <th className="p-4">رقم الوحدة</th>
+                        <th className="p-4">اسم المستأجر / النشاط</th>
+                        <th className="p-4">القطاع</th>
+                        <th className="p-4">المساحة</th>
+                        <th className="p-4">القيمة الشهرية</th>
+                        <th className="p-4">تاريخ نهاية العقد</th>
+                        <th className="p-4">حالة العقد</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60 text-slate-200">
+                      {filteredUnits.map((unit) => (
+                        <tr key={unit.id} className="hover:bg-slate-800/40 transition">
+                          <td className="p-4 font-bold text-[#00D8F6]">{unit.id}</td>
+                          <td className="p-4">
+                            <p className="font-bold text-slate-100">{unit.tenant}</p>
+                            <p className="text-[10px] text-slate-400">{unit.phone}</p>
+                          </td>
+                          <td className="p-4"><span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] border border-slate-700">{unit.type}</span></td>
+                          <td className="p-4 text-slate-300">{unit.area}</td>
+                          <td className="p-4 font-bold text-emerald-400">{unit.rent > 0 ? `${unit.rent.toLocaleString()} ج.م` : "المقر الرئيسي"}</td>
+                          <td className="p-4 text-slate-300">{unit.expireDate}</td>
+                          <td className="p-4">
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${unit.status.includes("نشط") ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : unit.status.includes("تنبيه") ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30"}`}>
+                              {unit.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "billing" && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
+                  <p className="text-xs text-slate-400">إجمالي المفوتر</p>
+                  <p className="text-xl font-black text-white mt-1">{dynamicKpis.totalBilled.toLocaleString()} ج.م</p>
+                </div>
+                <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
+                  <p className="text-xs text-slate-400">المبلغ المحصل بالفعل</p>
+                  <p className="text-xl font-black text-emerald-400 mt-1">{dynamicKpis.totalCollected.toLocaleString()} ج.م</p>
+                </div>
+                <div className="bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
+                  <p className="text-xs text-slate-400">المتبقي والمتأخرات</p>
+                  <p className="text-xl font-black text-rose-400 mt-1">{dynamicKpis.totalPending.toLocaleString()} ج.م</p>
+                </div>
+              </div>
+
+              <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800">
+                  <h3 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-[#00D8F6]" /> سجل الفواتير والإيصالات الرقمية
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setShowAddInvoiceModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 hover:brightness-110 transition">
+                      <Plus className="w-3.5 h-3.5" /> فاتورة جديدة
+                    </button>
+                    {["الكل", "مدفوع", "متأخر", "قيد الانتظار"].map((filter) => (
+                      <button key={filter} type="button" onClick={() => setInvoiceFilter(filter)} className={`px-2.5 py-1 rounded-lg text-xs transition ${invoiceFilter === filter ? "bg-[#00D8F6] text-slate-950 font-bold" : "bg-slate-800 text-slate-300 hover:bg-slate-700"}`}>
+                        {filter}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead className="bg-[#070F1B] text-slate-400 border-b border-slate-800">
+                      <tr>
+                        <th className="p-3">رقم الفاتورة</th>
+                        <th className="p-3">الوحدة والمستأجر</th>
+                        <th className="p-3">البيان</th>
+                        <th className="p-3">المبلغ</th>
+                        <th className="p-3">تاريخ الاستحقاق</th>
+                        <th className="p-3">الحالة</th>
+                        <th className="p-3 text-center">إجراء الإيصال</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {filteredInvoices.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-800/40 transition">
+                          <td className="p-3 font-mono font-semibold text-slate-300">{inv.id}</td>
+                          <td className="p-3 font-bold text-slate-100">{inv.tenant} ({inv.unitId})</td>
+                          <td className="p-3 text-slate-300">{inv.type}</td>
+                          <td className="p-3 font-bold text-white">{inv.amount.toLocaleString()} ج.م</td>
+                          <td className="p-3 text-slate-400">{inv.dueDate}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${inv.status === "مدفوع" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : inv.status === "متأخر" ? "bg-rose-500/10 text-rose-400 border-rose-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"}`}>
+                              {inv.status}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center flex items-center justify-center gap-2">
+                            {inv.status !== "مدفوع" && (
+                              <button type="button" onClick={() => handlePayInvoice(inv.id)} className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 px-2 py-1 rounded text-[10px] font-bold transition">
+                                تحصيل الآن
+                              </button>
+                            )}
+                            <button type="button" onClick={() => { setSelectedInvoice(inv); setShowInvoiceModal(true); }} className="bg-slate-800 hover:bg-[#00D8F6] hover:text-slate-950 text-slate-200 border border-slate-700 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center gap-1 transition">
+                              <Printer className="w-3 h-3" /> الإيصال
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "maintenance" && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Wrench className="w-5 h-5 text-amber-400" /> مركز الصيانة والخدمات الفنية
+                  </h2>
+                  <p className="text-xs text-slate-400">تتبع البلاغات والأعطال ومتابعة الفنيين</p>
+                </div>
+                <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
+                  <Plus className="w-4 h-4" /> بلاغ صيانة جديد
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <KanbanColumn title="بلاغات جديدة" count={tickets.filter((t) => t.status === "new").length} color="border-rose-500/50 bg-rose-500/5">
+                  {tickets.filter((t) => t.status === "new").map((ticket) => (
+                    <TicketCard key={ticket.id} ticket={ticket} onMove={(status) => moveTicket(ticket.id, status)} />
+                  ))}
+                </KanbanColumn>
+
+                <KanbanColumn title="قيد التنفيذ" count={tickets.filter((t) => t.status === "in_progress").length} color="border-amber-500/50 bg-amber-500/5">
+                  {tickets.filter((t) => t.status === "in_progress").map((ticket) => (
+                    <TicketCard key={ticket.id} ticket={ticket} onMove={(status) => moveTicket(ticket.id, status)} />
+                  ))}
+                </KanbanColumn>
+
+                <KanbanColumn title="تم الحل والإغلاق" count={tickets.filter((t) => t.status === "resolved").length} color="border-emerald-500/50 bg-emerald-500/5">
+                  {tickets.filter((t) => t.status === "resolved").map((ticket) => (
+                    <TicketCard key={ticket.id} ticket={ticket} onMove={(status) => moveTicket(ticket.id, status)} />
+                  ))}
+                </KanbanColumn>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "announcements" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between bg-[#0B192C] p-4 rounded-2xl border border-slate-800">
+                <div>
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <BellRing className="w-5 h-5 text-[#00D8F6]" /> سجل التنبيهات والتواصل الداخلي
+                  </h2>
+                  <p className="text-xs text-slate-400">بث الإشعارات والتعليمات لكافة المستأجرين في المول</p>
+                </div>
+                <button type="button" onClick={() => setShowAnnouncementModal(true)} className="bg-[#00D8F6] text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> إعلان جديد
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {announcements.map((item) => (
+                  <div key={item.id} className="bg-[#0B192C] p-5 rounded-2xl border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${item.priority === "هام" ? "bg-rose-500/20 text-rose-400 border-rose-500/30" : "bg-[#00D8F6]/20 text-[#00D8F6] border-[#00D8F6]/30"}`}>{item.priority}</span>
+                        <h3 className="font-bold text-slate-100 text-sm">{item.title}</h3>
+                      </div>
+                      <span className="text-[11px] text-slate-400">{item.date}</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">{item.content}</p>
+                    <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>المستهدف: <strong className="text-slate-200">{item.target}</strong></span>
+                      <span className="text-emerald-400 flex items-center gap-1"><Check className="w-3 h-3" /> تم الإرسال</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {showAddUnitModal && (
+        <Modal title="إضافة وحدة ومستأجر جديد" onClose={() => setShowAddUnitModal(false)}>
+          <form onSubmit={handleAddUnit} className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">رقم الوحدة</label>
+                <input required type="text" value={newUnit.id} onChange={(e) => setNewUnit({ ...newUnit, id: e.target.value })} placeholder="G-15" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">اسم الشركة / المستأجر</label>
+                <input required type="text" value={newUnit.tenant} onChange={(e) => setNewUnit({ ...newUnit, tenant: e.target.value })} placeholder="متجر الأناقة" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">نوع النشاط</label>
+                <select value={newUnit.type} onChange={(e) => setNewUnit({ ...newUnit, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="تجاري">تجاري</option>
+                  <option value="إداري">إداري</option>
+                  <option value="مطاعم وكافيهات">مطاعم وكافيهات</option>
+                  <option value="عيادات">عيادات</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الدور</label>
+                <select value={newUnit.floor} onChange={(e) => setNewUnit({ ...newUnit, floor: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="الدور الأرضي">الدور الأرضي</option>
+                  <option value="الدور الأول">الدور الأول</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الإيجار الشهري (ج.م)</label>
+                <input type="number" placeholder="25000" value={newUnit.rent} onChange={(e) => setNewUnit({ ...newUnit, rent: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">تاريخ نهاية العقد</label>
+                <input type="date" value={newUnit.expireDate} onChange={(e) => setNewUnit({ ...newUnit, expireDate: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setShowAddUnitModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ الوحدة</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showAddInvoiceModal && (
+        <Modal title="إضافة فاتورة جديدة" onClose={() => setShowAddInvoiceModal(false)}>
+          <form onSubmit={handleAddInvoice} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">الوحدة / المستأجر</label>
+              <select value={newInvoice.unitId} onChange={(e) => setNewInvoice({ ...newInvoice, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                {units.map((u) => (
+                  <option key={u.id} value={u.id}>{u.id} - {u.tenant}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">المبلغ (ج.م)</label>
+                <input required type="number" min="1" placeholder="20000" value={newInvoice.amount} onChange={(e) => setNewInvoice({ ...newInvoice, amount: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">البيان</label>
+                <input required type="text" placeholder="إيجار شهر ديسمبر" value={newInvoice.type} onChange={(e) => setNewInvoice({ ...newInvoice, type: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">تاريخ الاستحقاق</label>
+                <input required type="date" value={newInvoice.dueDate} onChange={(e) => setNewInvoice({ ...newInvoice, dueDate: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الحالة</label>
+                <select value={newInvoice.status} onChange={(e) => setNewInvoice({ ...newInvoice, status: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="قيد الانتظار">قيد الانتظار</option>
+                  <option value="متأخر">متأخر</option>
+                  <option value="مدفوع">مدفوع</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setShowAddInvoiceModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ الفاتورة</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showAddTicketModal && (
+        <Modal title="إضافة بلاغ صيانة جديد" onClose={() => setShowAddTicketModal(false)}>
+          <form onSubmit={handleAddTicket} className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الوحدة</label>
+                <select value={newTicket.unitId} onChange={(e) => setNewTicket({ ...newTicket, unitId: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  {units.map((u) => (
+                    <option key={u.id} value={u.id}>{u.id} - {u.tenant}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">التصنيف</label>
+                <select value={newTicket.category} onChange={(e) => setNewTicket({ ...newTicket, category: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="تكييف">تكييف</option>
+                  <option value="كهرباء">كهرباء</option>
+                  <option value="سباكة">سباكة</option>
+                  <option value="سلامة">سلامة</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">وصف العطل / البلاغ</label>
+              <input required type="text" placeholder="مثال: ضعف تبريد وحدة التكييف الرئيسية" value={newTicket.title} onChange={(e) => setNewTicket({ ...newTicket, title: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الأولوية</label>
+                <select value={newTicket.priority} onChange={(e) => setNewTicket({ ...newTicket, priority: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="منخفض">منخفض</option>
+                  <option value="متوسط">متوسط</option>
+                  <option value="عاجل">عاجل</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الفني المسؤول</label>
+                <input type="text" placeholder="م. أحمد حسن" value={newTicket.assignedTo} onChange={(e) => setNewTicket({ ...newTicket, assignedTo: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setShowAddTicketModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">حفظ البلاغ</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {showInvoiceModal && selectedInvoice && (
+        <Modal title="معاينة إيصال سداد رقمي" onClose={() => setShowInvoiceModal(false)}>
+          <div className="bg-white text-slate-900 p-6 rounded-xl space-y-6 text-right font-sans">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div>
+                <h3 className="text-xl font-black text-[#0B192C]">إيصال استلام نقدية / خدمات</h3>
+                <p className="text-xs text-slate-500">مول الفيوم الجديدة - الإدارة التشغيلية</p>
+              </div>
+              <div className="text-left font-mono">
+                <span className="text-xs text-cyan-700 font-bold block">Valict Cloud Secured</span>
+                <span className="text-sm font-bold text-slate-700">{selectedInvoice.id}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-lg border border-slate-100">
+              <div>
+                <p className="text-slate-400">استلمنا من السيد / الشركة:</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.tenant}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">رقم الوحدة:</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.unitId}</p>
+              </div>
+              <div>
+                <p className="text-slate-400">المبلغ:</p>
+                <p className="font-black text-emerald-600 text-base mt-0.5">{selectedInvoice.amount.toLocaleString()} جنيه مصري</p>
+              </div>
+              <div>
+                <p className="text-slate-400">وذلك مقابل:</p>
+                <p className="font-bold text-slate-800 text-sm mt-0.5">{selectedInvoice.type}</p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                <CheckCircle2 className="w-4 h-4" /> معتمد ومسدد رقمياً عبر نظام Valict
+              </div>
+              <p>التاريخ: {selectedInvoice.paymentDate !== "-" ? selectedInvoice.paymentDate : selectedInvoice.dueDate}</p>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button type="button" onClick={() => window.print()} className="bg-[#0B192C] text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 hover:bg-slate-800">
+                <Printer className="w-3.5 h-3.5 text-[#00D8F6]" /> طباعة الإيصال
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showAnnouncementModal && (
+        <Modal title="إرسال تنبيه جديد للمستأجرين" onClose={() => setShowAnnouncementModal(false)}>
+          <form onSubmit={handleAddAnnouncement} className="space-y-4 text-xs">
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">عنوان التنبيه</label>
+              <input required type="text" value={newAnnouncement.title} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, title: e.target.value })} placeholder="مثال: تنبيه بخصوص أعمال النظافة الدورية" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]" />
+            </div>
+            <div>
+              <label className="block text-slate-400 mb-1 font-semibold">نص الرسالة / الإعلان</label>
+              <textarea required rows={4} value={newAnnouncement.content} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, content: e.target.value })} placeholder="اكتب التنبيه..." className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]"></textarea>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الأهمية</label>
+                <select value={newAnnouncement.priority} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, priority: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="عادي">عادي</option>
+                  <option value="هام">هام جداً</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 font-semibold">الفئة المستهدفة</label>
+                <select value={newAnnouncement.target} onChange={(e) => setNewAnnouncement({ ...newAnnouncement, target: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-[#00D8F6]">
+                  <option value="جميع المستأجرين">جميع المستأجرين</option>
+                  <option value="القطاع التجاري">القطاع التجاري فقط</option>
+                  <option value="القطاع الإداري">القطاع الإداري فقط</option>
+                </select>
+              </div>
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowAnnouncementModal(false)} className="px-4 py-2 rounded-xl text-slate-400 hover:bg-slate-800">إلغاء</button>
+              <button type="submit" className="bg-[#00D8F6] text-slate-950 font-bold px-5 py-2 rounded-xl hover:brightness-110">إرسال فوراً</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function NavItem({ icon, label, active, onClick, badge, badgeColor }) {
+  return (
+    <button type="button" onClick={onClick} className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${active ? "bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 shadow-md shadow-[#00D8F6]/20 font-bold" : "text-slate-300 hover:bg-slate-800/60 hover:text-white"}`}>
+      <div className="flex items-center gap-3">
+        {icon}
+        <span>{label}</span>
+      </div>
+      {badge !== undefined && (
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeColor || "bg-slate-800 text-slate-200 border-slate-700"}`}>
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function KpiCard({ title, value, subtext, icon, badge, badgeType }) {
+  return (
+    <div className="bg-[#0B192C] border border-slate-800 p-4 rounded-2xl space-y-3 hover:border-slate-700 transition shadow-lg">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-slate-400 font-medium">{title}</span>
+        <div className="p-2 bg-[#070F1B] rounded-xl border border-slate-800">{icon}</div>
+      </div>
+      <div>
+        <h3 className="text-2xl font-black text-white">{value}</h3>
+        <p className="text-[11px] text-slate-400 mt-0.5">{subtext}</p>
+      </div>
+      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between">
+        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${badgeType === "success" ? "bg-emerald-500/10 text-emerald-400" : badgeType === "warning" ? "bg-amber-500/10 text-amber-400" : badgeType === "danger" ? "bg-rose-500/10 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
+          {badge}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function KanbanColumn({ title, count, color, children }) {
+  return (
+    <div className={`border rounded-2xl p-4 flex flex-col min-h-[360px] ${color}`}>
+      <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+        <h3 className="font-bold text-slate-200 text-xs">{title}</h3>
+        <span className="bg-slate-800 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded-full">{count}</span>
+      </div>
+      <div className="space-y-3 flex-1">{children}</div>
+    </div>
+  );
+}
+
+function TicketCard({ ticket, onMove }) {
+  return (
+    <div className="bg-[#0B192C] border border-slate-800 p-3.5 rounded-xl space-y-2 hover:border-[#00D8F6]/50 transition shadow-md">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-bold text-[#00D8F6]">{ticket.id} • {ticket.unitId}</span>
+        <span className={`text-[9px] px-2 py-0.5 rounded font-bold ${ticket.priority === "عاجل" ? "bg-rose-500/20 text-rose-400" : "bg-slate-800 text-slate-300"}`}>
+          {ticket.priority}
+        </span>
+      </div>
+      <p className="text-xs font-bold text-slate-100">{ticket.title}</p>
+      <p className="text-[10px] text-slate-400">الفني المسؤول: {ticket.assignedTo}</p>
+
+      <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px]">
+        <span className="text-slate-400">{ticket.date}</span>
+        <div className="flex items-center gap-1">
+          {ticket.status !== "new" && (
+            <button type="button" onClick={() => onMove("new")} className="text-slate-400 hover:text-white px-1">جديد</button>
+          )}
+          {ticket.status !== "in_progress" && (
+            <button type="button" onClick={() => onMove("in_progress")} className="text-amber-400 hover:underline px-1">تنفيذ</button>
+          )}
+          {ticket.status !== "resolved" && (
+            <button type="button" onClick={() => onMove("resolved")} className="text-emerald-400 hover:underline px-1">تم الحل</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-[#0B192C] border border-slate-800 w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl">
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#070F1B]">
+          <h3 className="font-bold text-slate-100 text-sm">{title}</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
