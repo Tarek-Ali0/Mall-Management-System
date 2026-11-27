@@ -185,17 +185,6 @@ export default function PortalPage() {
     [tickets, activeUnit]
   );
 
-  const usedDepositAmount = useMemo(
-    () =>
-      unitTickets
-        .filter((t) => t.billingType === "داخل العقد" && Number(t.serviceFee) > 0)
-        .reduce((sum, t) => sum + (Number(t.serviceFee) || 0), 0),
-    [unitTickets]
-  );
-
-  const originalDepositAmount = Number(activeUnit?.maintenanceDeposit || 0);
-  const remainingDepositAmount = Math.max(0, originalDepositAmount - usedDepositAmount);
-
   const unpaidAmount = useMemo(
     () => unitInvoices.filter((inv) => inv.status !== "مدفوع").reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0),
     [unitInvoices]
@@ -417,12 +406,9 @@ export default function PortalPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
           <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
-            <p className="text-slate-400">رصيد وديعة الصيانة المتبقي</p>
+            <p className="text-slate-400">وديعة الصيانة للوحدة</p>
             <p className="text-xl font-black text-[#00D8F6] mt-1">
-              {remainingDepositAmount.toLocaleString()} ج.م
-            </p>
-            <p className="text-[10px] text-slate-400 mt-1">
-              الأصل: {originalDepositAmount.toLocaleString()} ج.م • المخصوم: {usedDepositAmount.toLocaleString()} ج.م
+              {Number(activeUnit.maintenanceDeposit || 0).toLocaleString()} ج.م
             </p>
           </div>
           <div className="bg-[#0B192C] border border-slate-800 rounded-2xl p-4">
@@ -476,7 +462,6 @@ export default function PortalPage() {
               <div className="space-y-2 text-slate-300">
                 <p>الطرف الرئيسي: <strong className="text-white">{activeUnit.tenant}</strong> ({activeUnit.ownershipType})</p>
                 <p>المساحة والدور: <strong className="text-white">{activeUnit.area || "-"} — {activeUnit.floor}</strong></p>
-                <p>وديعة الصيانة المتبقية: <strong className="text-[#00D8F6]">{remainingDepositAmount.toLocaleString()} ج.م</strong> (من أصل {originalDepositAmount.toLocaleString()} ج.م)</p>
                 {activeUnit.ownershipType === "مستأجر" ? (
                   <>
                     <p>الإيجار الشهري: <strong className="text-emerald-400">{Number(activeUnit.rent || 0).toLocaleString()} ج.م</strong></p>
@@ -595,10 +580,7 @@ export default function PortalPage() {
                         </div>
                         <p className="text-[11px] text-slate-400">
                           التصنيف: {t.category} • التبعية: <strong className="text-slate-200">{t.billingType}</strong>
-                          {t.billingType === "داخل العقد" &&
-                            (Number(t.serviceFee) > 0
-                              ? ` (تُخصم من وديعة الصيانة: ${Number(t.serviceFee).toLocaleString()} ج.م — لا يُحصّل منك)`
-                              : " (مغطى من وديعة الصيانة — لا يُحصّل منك)")}
+                          {t.billingType === "داخل العقد" && " (يُحصّل من الجهة المسؤولة عن وديعة الصيانة — لا يُحصّل منك)"}
                         </p>
                         {t.billingType === "خارج العقد" && (
                           <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
@@ -617,7 +599,7 @@ export default function PortalPage() {
                           </div>
                         )}
                         {t.invoiceId && (
-                          <p className="text-[10px] text-cyan-300 font-mono">تم إصدار المطالبة بعد الحل: {t.invoiceId}</p>
+                          <p className="text-[10px] text-cyan-300 font-mono">مرجع المطالبة الصادرة: {t.invoiceId}</p>
                         )}
                       </div>
                     );
