@@ -383,17 +383,6 @@ export default function App() {
     loadFromSupabase();
   }, [loadFromSupabase]);
 
-  // حساب تكلفة الصيانة المستهلكة من وديعة الصيانة لكل وحدة (بلاغات داخل العقد)
-  const unitDepositUsedMap = useMemo(() => {
-    const map = {};
-    tickets.forEach((t) => {
-      if (t.billingType === "داخل العقد" && Number(t.serviceFee) > 0) {
-        map[t.unitId] = (map[t.unitId] || 0) + Number(t.serviceFee);
-      }
-    });
-    return map;
-  }, [tickets]);
-
   const handleFloorSelectionInAddUnit = (floorName) => {
     const matchedFloor = mallConfig.floors.find((f) => f.name === floorName);
     const nextCode = (matchedFloor?.code || "").trim();
@@ -830,7 +819,9 @@ export default function App() {
     setShowAddTicketModal(false);
   };
 
-  // تقييم البلاغ: داخل العقد (تُخصم تكلفته من وديعة الصيانة ولا تُحصّل من العميل) أو خارج العقد (تُحصّل من العميل بعد الموافقة)
+  // تقييم البلاغ:
+  // - داخل العقد: تكلفة المصنعيات/قطع الغيار تُحصَّل من الجهة الثالثة المسؤولة عن الوديعة (ولا تُحصّل من العميل ولا تُخصم من رصيد الوديعة المعروض)
+  // - خارج العقد: تكلفة الصيانة تُحصَّل من العميل بعد موافقته
   const handleEvaluateTicket = async (ticketId, { billingType, serviceFee, assignedTo }) => {
     const isInside = billingType === "داخل العقد";
     const feeNum = Math.max(0, Number(serviceFee) || 0);
@@ -844,11 +835,11 @@ export default function App() {
       serviceFee: feeNum,
       assignedTo: assignedTo?.trim() || (isInside ? "فني الصيانة" : "بانتظار موافقة العميل"),
       depositCovered: isInside,
-      approvalStatus: isInside ? "مغطى من وديعة الصيانة" : "بانتظار موافقة العميل",
+      approvalStatus: isInside ? "داخل العقد (تحصيل من جهة الوديعة)" : "بانتظار موافقة العميل",
       paymentStatus: isInside
         ? feeNum > 0
-          ? `مخصوم من وديعة الصيانة (${feeNum.toLocaleString()} ج.م)`
-          : "مغطى من وديعة الصيانة"
+          ? `بانتظار تحصيل ${feeNum.toLocaleString()} ج.م من جهة الوديعة`
+          : "داخل العقد (لا يُحصّل من العميل)"
         : "بانتظار الموافقة",
     };
 
@@ -865,10 +856,6 @@ export default function App() {
           payment_status: patch.paymentStatus,
         })
         .eq("id", ticketId);
-    }
-
-    if (isInside && feeNum > 0) {
-      setNoticeMessage(`تم اعتماد تكلفة الصيانة (${feeNum.toLocaleString()} ج.م) للبلاغ ${ticketId} على وديعة الصيانة دون تحصيلها من العميل.`);
     }
   };
 
@@ -911,39 +898,58 @@ export default function App() {
     }
 
     let issuedInvoiceId = ticket.invoiceId || null;
-    if (ticket.billingType === "خارج العقد" && Number(ticket.serviceFee) > 0 && !ticket.invoiceIssued) {
-      const matchedUnit = units.find((u) => u.id === ticket.unitId);
-      const partyName =
-        matchedUnit?.ownershipType === "مالك" && matchedUnit?.isSubleased && matchedUnit?.subtenantName
-          ? `${matchedUnit.subtenantName} (وحدة ${ticket.unitId} - مالك: ${matchedUnit.tenant})`
-          : matchedUnit?.tenant || `وحدة ${ticket.unitId}`;
+    const feeNum = Number(ticket.serviceFee) || 0;
+    const today = new Date().toISOString().split("T")[0];
 
-      issuedInvoiceId = `INV-MNT-${ticket.id}-${Math.floor(10 + Math.random() * 89)}`;
-      const today = new Date().toISOString().split("T")[0];
-      const newInv = {
-        id: issuedInvoiceId,
-        unitId: ticket.unitId,
-        tenant: partyName,
-        amount: Number(ticket.serviceFee),
-        type: `صيانة خارج العقد (${ticket.title} - ${ticket.id})`,
-        dueDate: today,
-        status: "قيد الانتظار",
-        paymentDate: "-",
-      };
-      setInvoices((prev) => [newInv, ...prev]);
-      if (supabase) await supabase.from("invoices").upsert(mapInvoiceToDb(newInv));
+    if (feeNum > 0 && !ticket.invoiceIssued) {
+      if (ticket.billingType === "خارج العقد") {
+        const matchedUnit = units.find((u) => u.id === ticket.unitId);
+        const partyName =
+          matchedUnit?.ownershipType === "مالك" && matchedUnit?.isSubleased && matchedUnit?.subtenantName
+            ? `${matchedUnit.subtenantName} (وحدة ${ticket.unitId} - مالك: ${matchedUnit.tenant})`
+            : matchedUnit?.tenant || `وحدة ${ticket.unitId}`;
+
+        issuedInvoiceId = `INV-MNT-${ticket.id}-${Math.floor(10 + Math.random() * 89)}`;
+        const newInv = {
+          id: issuedInvoiceId,
+          unitId: ticket.unitId,
+          tenant: partyName,
+          amount: feeNum,
+          type: `صيانة خارج العقد (${ticket.title} - ${ticket.id})`,
+          dueDate: today,
+          status: "قيد الانتظار",
+          paymentDate: "-",
+        };
+        setInvoices((prev) => [newInv, ...prev]);
+        if (supabase) await supabase.from("invoices").upsert(mapInvoiceToDb(newInv));
+      } else if (ticket.billingType === "داخل العقد") {
+        issuedInvoiceId = `INV-DEP-${ticket.id}-${Math.floor(10 + Math.random() * 89)}`;
+        const depositPartyName = `الجهة المسؤولة عن وديعة الصيانة (وحدة ${ticket.unitId})`;
+        const newInv = {
+          id: issuedInvoiceId,
+          unitId: ticket.unitId,
+          tenant: depositPartyName,
+          amount: feeNum,
+          type: `صيانة داخل العقد - مصنعيات وقطع غيار (${ticket.title} - ${ticket.id})`,
+          dueDate: today,
+          status: "قيد الانتظار",
+          paymentDate: "-",
+        };
+        setInvoices((prev) => [newInv, ...prev]);
+        if (supabase) await supabase.from("invoices").upsert(mapInvoiceToDb(newInv));
+      }
     }
 
     const updatedTicket = {
       ...ticket,
       status: "resolved",
-      invoiceIssued: ticket.billingType === "خارج العقد" ? true : ticket.invoiceIssued,
+      invoiceIssued: feeNum > 0 ? true : ticket.invoiceIssued,
       invoiceId: issuedInvoiceId,
       paymentStatus:
         ticket.billingType === "داخل العقد"
-          ? Number(ticket.serviceFee) > 0
-            ? `مخصوم من وديعة الصيانة (${Number(ticket.serviceFee).toLocaleString()} ج.م)`
-            : "مغطى من وديعة الصيانة"
+          ? feeNum > 0
+            ? `مطالبة على جهة الوديعة (${issuedInvoiceId || ""})`
+            : "داخل العقد (بدون تكلفة إضافية)"
           : "مطالبة قائمة بانتظار التحصيل",
     };
 
@@ -1367,9 +1373,6 @@ export default function App() {
                         filteredUnits.map((unit) => {
                           const isOwner = unit.ownershipType === "مالك";
                           const historyCount = Array.isArray(unit.contractHistory) ? unit.contractHistory.length : 0;
-                          const originalDeposit = Number(unit.maintenanceDeposit || 0);
-                          const usedDeposit = Number(unitDepositUsedMap[unit.id] || 0);
-                          const remainingDeposit = Math.max(0, originalDeposit - usedDeposit);
                           return (
                             <tr key={unit.id} className="hover:bg-slate-800/40 transition">
                               <td className="p-4 font-bold text-[#00D8F6]">
@@ -1405,11 +1408,8 @@ export default function App() {
                                   <p className="font-bold text-emerald-400">{Number(unit.rent || 0).toLocaleString()} ج.م / شهر</p>
                                 )}
                                 <p className="text-[10px] text-cyan-300">
-                                  وديعة الصيانة: {originalDeposit.toLocaleString()} ج.م • المتبقي: <strong className="text-white">{remainingDeposit.toLocaleString()} ج.م</strong>
+                                  وديعة الصيانة: {Number(unit.maintenanceDeposit || 0).toLocaleString()} ج.م
                                 </p>
-                                {usedDeposit > 0 && (
-                                  <p className="text-[10px] text-amber-300">مخصوم للصيانة داخل العقد: {usedDeposit.toLocaleString()} ج.م</p>
-                                )}
                               </td>
                               <td className="p-4 text-slate-300">
                                 {isOwner ? (unit.isSubleased ? unit.subleaseExpireDate || "-" : "لا يوجد عقد إيجار") : unit.expireDate || "-"}
@@ -1505,7 +1505,7 @@ export default function App() {
                     <thead className="bg-[#070F1B] text-slate-400 border-b border-slate-800">
                       <tr>
                         <th className="p-3">رقم المرجع</th>
-                        <th className="p-3">الوحدة والطرف</th>
+                        <th className="p-3">الوحدة والطرف / الجهة</th>
                         <th className="p-3">البيان</th>
                         <th className="p-3">المبلغ</th>
                         <th className="p-3">الاستحقاق</th>
@@ -1570,7 +1570,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-amber-400" /> مركز الصيانة والخدمات الفنية
                   </h2>
-                  <p className="text-xs text-slate-400">داخل العقد يُخصم من وديعة الصيانة ولا يُحصّل من العميل • خارج العقد يُحصّل من العميل بعد الموافقة</p>
+                  <p className="text-xs text-slate-400">داخل العقد يُصدر مطالبة على الجهة المسؤولة عن الوديعة • خارج العقد يُصدر مطالبة على العميل بعد الموافقة</p>
                 </div>
                 {perms.canManageTickets && (
                   <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -2227,7 +2227,7 @@ export default function App() {
               <span className="font-mono font-bold">{selectedInvoice.id}</span>
             </div>
             <div className="space-y-1">
-              <p><strong>الوحدة:</strong> {selectedInvoice.unitId} — {selectedInvoice.tenant}</p>
+              <p><strong>الوحدة / الجهة:</strong> {selectedInvoice.unitId} — {selectedInvoice.tenant}</p>
               <p><strong>البيان:</strong> {selectedInvoice.type}</p>
               <p><strong>المبلغ:</strong> {selectedInvoice.amount.toLocaleString()} ج.م</p>
               <p><strong>الحالة:</strong> {selectedInvoice.status}</p>
@@ -2354,7 +2354,7 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, o
       {ticket.billingType !== "غير محدد" && (
         <p className="text-[10px] text-slate-300">
           {ticket.billingType === "داخل العقد"
-            ? `داخل العقد • تكلفة مخصومة من الوديعة: ${Number(ticket.serviceFee || 0).toLocaleString()} ج.م`
+            ? `داخل العقد • تكلفة مصنعيات/قطع غيار: ${Number(ticket.serviceFee || 0).toLocaleString()} ج.م (تحصيل من جهة الوديعة)`
             : `خارج العقد • المبلغ على العميل: ${Number(ticket.serviceFee || 0).toLocaleString()} ج.م (${ticket.approvalStatus})`}
         </p>
       )}
@@ -2363,7 +2363,7 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, o
         <div className="bg-[#070F1B] border border-slate-800 rounded-lg p-2.5 space-y-2 text-[10px]">
           <div className="grid grid-cols-2 gap-1.5">
             <select value={evalBillingType} onChange={(e) => setEvalBillingType(e.target.value)} className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200">
-              <option value="داخل العقد">داخل العقد (من الوديعة)</option>
+              <option value="داخل العقد">داخل العقد (جهة الوديعة)</option>
               <option value="خارج العقد">خارج العقد (على العميل)</option>
             </select>
             <input type="text" value={evalTechnician} onChange={(e) => setEvalTechnician(e.target.value)} placeholder="الفني" className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200" />
@@ -2373,7 +2373,7 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, o
             min="0"
             value={evalFee}
             onChange={(e) => setEvalFee(e.target.value)}
-            placeholder={evalBillingType === "داخل العقد" ? "تكلفة الصيانة من الوديعة (ج.م)" : "مبلغ الصيانة خارج العقد (ج.م)"}
+            placeholder={evalBillingType === "داخل العقد" ? "تكلفة المصنعيات/القطع (لتحصيلها من جهة الوديعة)" : "مبلغ الصيانة خارج العقد (ج.م)"}
             className={`w-full bg-[#0B192C] border rounded px-2 py-1 text-slate-200 ${evalBillingType === "خارج العقد" ? "border-amber-500/40" : "border-cyan-500/30"}`}
           />
           <div className="flex flex-wrap gap-1.5">
@@ -2399,7 +2399,7 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, o
           }`}
         >
           <FileCheck2 className="w-3.5 h-3.5" />
-          {isOutside ? "حل وإصدار مطالبة" : "حل وإغلاق البلاغ (خصم من الوديعة)"}
+          {isOutside ? "حل وإصدار مطالبة للعميل" : "حل وإصدار مطالبة لجهة الوديعة"}
         </button>
       )}
 
