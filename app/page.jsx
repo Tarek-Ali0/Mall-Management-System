@@ -11,9 +11,7 @@ import {
   Settings,
   Search,
   Plus,
-  CheckCircle2,
   AlertTriangle,
-  TrendingUp,
   Printer,
   X,
   ShieldCheck,
@@ -212,6 +210,7 @@ export default function App() {
   const [loginPasswordInput, setLoginPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loggedInUserId, setLoggedInUserId] = useState("");
+  const [authReady, setAuthReady] = useState(false);
 
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
@@ -301,9 +300,12 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedUser = localStorage.getItem("mms_logged_user");
-      if (savedUser) setLoggedInUserId(savedUser);
+      const savedUser = localStorage.getItem("mms_logged_user") || "";
+      const savedTab = localStorage.getItem("mms_active_tab") || "overview";
+      setLoggedInUserId(savedUser);
+      setActiveTab(savedTab);
     }
+    setAuthReady(true);
   }, []);
 
   const currentUser = useMemo(
@@ -314,6 +316,9 @@ export default function App() {
   const handleSelectTab = useCallback((tabName) => {
     setActiveTab(tabName);
     setSearchQuery("");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mms_active_tab", tabName);
+    }
     if (tabName !== "units") setUnitFilter("الكل");
     if (tabName !== "billing") setInvoiceFilter("الكل");
   }, []);
@@ -378,6 +383,17 @@ export default function App() {
     loadFromSupabase();
   }, [loadFromSupabase]);
 
+  // حساب تكلفة الصيانة المستهلكة من وديعة الصيانة لكل وحدة (بلاغات داخل العقد)
+  const unitDepositUsedMap = useMemo(() => {
+    const map = {};
+    tickets.forEach((t) => {
+      if (t.billingType === "داخل العقد" && Number(t.serviceFee) > 0) {
+        map[t.unitId] = (map[t.unitId] || 0) + Number(t.serviceFee);
+      }
+    });
+    return map;
+  }, [tickets]);
+
   const handleFloorSelectionInAddUnit = (floorName) => {
     const matchedFloor = mallConfig.floors.find((f) => f.name === floorName);
     const nextCode = (matchedFloor?.code || "").trim();
@@ -411,7 +427,10 @@ export default function App() {
     setSearchQuery("");
     setActiveTab("overview");
     setLoggedInUserId(target.id);
-    if (typeof window !== "undefined") localStorage.setItem("mms_logged_user", target.id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("mms_logged_user", target.id);
+      localStorage.setItem("mms_active_tab", "overview");
+    }
   };
 
   const handleLogoutUser = () => {
@@ -420,7 +439,10 @@ export default function App() {
     setLoginError("");
     setSearchQuery("");
     setActiveTab("overview");
-    if (typeof window !== "undefined") localStorage.removeItem("mms_logged_user");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("mms_logged_user");
+      localStorage.removeItem("mms_active_tab");
+    }
   };
 
   const handleCreateUser = async (e) => {
@@ -808,9 +830,10 @@ export default function App() {
     setShowAddTicketModal(false);
   };
 
+  // تقييم البلاغ: داخل العقد (تُخصم تكلفته من وديعة الصيانة ولا تُحصّل من العميل) أو خارج العقد (تُحصّل من العميل بعد الموافقة)
   const handleEvaluateTicket = async (ticketId, { billingType, serviceFee, assignedTo }) => {
     const isInside = billingType === "داخل العقد";
-    const feeNum = isInside ? 0 : Math.max(0, Number(serviceFee) || 0);
+    const feeNum = Math.max(0, Number(serviceFee) || 0);
     if (!isInside && feeNum <= 0) {
       setNoticeMessage(`يرجى إدخال مبلغ الصيانة خارج العقد للبلاغ ${ticketId}.`);
       return;
@@ -822,7 +845,11 @@ export default function App() {
       assignedTo: assignedTo?.trim() || (isInside ? "فني الصيانة" : "بانتظار موافقة العميل"),
       depositCovered: isInside,
       approvalStatus: isInside ? "مغطى من وديعة الصيانة" : "بانتظار موافقة العميل",
-      paymentStatus: isInside ? "مسدد من الوديعة" : "بانتظار الموافقة",
+      paymentStatus: isInside
+        ? feeNum > 0
+          ? `مخصوم من وديعة الصيانة (${feeNum.toLocaleString()} ج.م)`
+          : "مغطى من وديعة الصيانة"
+        : "بانتظار الموافقة",
     };
 
     setTickets((prev) => prev.map((t) => (t.id === ticketId ? { ...t, ...patch } : t)));
@@ -838,6 +865,10 @@ export default function App() {
           payment_status: patch.paymentStatus,
         })
         .eq("id", ticketId);
+    }
+
+    if (isInside && feeNum > 0) {
+      setNoticeMessage(`تم اعتماد تكلفة الصيانة (${feeNum.toLocaleString()} ج.م) للبلاغ ${ticketId} على وديعة الصيانة دون تحصيلها من العميل.`);
     }
   };
 
@@ -908,7 +939,12 @@ export default function App() {
       status: "resolved",
       invoiceIssued: ticket.billingType === "خارج العقد" ? true : ticket.invoiceIssued,
       invoiceId: issuedInvoiceId,
-      paymentStatus: ticket.billingType === "داخل العقد" ? "مسدد من الوديعة" : "مطالبة قائمة بانتظار التحصيل",
+      paymentStatus:
+        ticket.billingType === "داخل العقد"
+          ? Number(ticket.serviceFee) > 0
+            ? `مخصوم من وديعة الصيانة (${Number(ticket.serviceFee).toLocaleString()} ج.م)`
+            : "مغطى من وديعة الصيانة"
+          : "مطالبة قائمة بانتظار التحصيل",
     };
 
     setTickets((prev) => prev.map((t) => (t.id === ticketId ? updatedTicket : t)));
@@ -1006,6 +1042,14 @@ export default function App() {
     () => ["الكل", "ملاك", "مستأجرون", "مؤجرة للغير", ...mallConfig.floors.map((f) => f.name), "تنبيهات"],
     [mallConfig]
   );
+
+  if (!authReady) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#070F1B] text-slate-400 flex items-center justify-center p-4 text-xs font-sans">
+        جاري تحميل الجلسة...
+      </div>
+    );
+  }
 
   if (!currentUser) {
     const chosenUser = users.find((u) => u.id === selectedUserId) || users[0];
@@ -1323,6 +1367,9 @@ export default function App() {
                         filteredUnits.map((unit) => {
                           const isOwner = unit.ownershipType === "مالك";
                           const historyCount = Array.isArray(unit.contractHistory) ? unit.contractHistory.length : 0;
+                          const originalDeposit = Number(unit.maintenanceDeposit || 0);
+                          const usedDeposit = Number(unitDepositUsedMap[unit.id] || 0);
+                          const remainingDeposit = Math.max(0, originalDeposit - usedDeposit);
                           return (
                             <tr key={unit.id} className="hover:bg-slate-800/40 transition">
                               <td className="p-4 font-bold text-[#00D8F6]">
@@ -1357,7 +1404,12 @@ export default function App() {
                                 ) : (
                                   <p className="font-bold text-emerald-400">{Number(unit.rent || 0).toLocaleString()} ج.م / شهر</p>
                                 )}
-                                <p className="text-[10px] text-cyan-300">وديعة الصيانة: {Number(unit.maintenanceDeposit || 0).toLocaleString()} ج.م</p>
+                                <p className="text-[10px] text-cyan-300">
+                                  وديعة الصيانة: {originalDeposit.toLocaleString()} ج.م • المتبقي: <strong className="text-white">{remainingDeposit.toLocaleString()} ج.م</strong>
+                                </p>
+                                {usedDeposit > 0 && (
+                                  <p className="text-[10px] text-amber-300">مخصوم للصيانة داخل العقد: {usedDeposit.toLocaleString()} ج.م</p>
+                                )}
                               </td>
                               <td className="p-4 text-slate-300">
                                 {isOwner ? (unit.isSubleased ? unit.subleaseExpireDate || "-" : "لا يوجد عقد إيجار") : unit.expireDate || "-"}
@@ -1518,7 +1570,7 @@ export default function App() {
                   <h2 className="text-lg font-bold text-white flex items-center gap-2">
                     <Wrench className="w-5 h-5 text-amber-400" /> مركز الصيانة والخدمات الفنية
                   </h2>
-                  <p className="text-xs text-slate-400">تحديد التبعية التعاقدية والموافقة والحل وإصدار المطالبة عند الحاجة</p>
+                  <p className="text-xs text-slate-400">داخل العقد يُخصم من وديعة الصيانة ولا يُحصّل من العميل • خارج العقد يُحصّل من العميل بعد الموافقة</p>
                 </div>
                 {perms.canManageTickets && (
                   <button type="button" onClick={() => setShowAddTicketModal(true)} className="bg-gradient-to-r from-[#00D8F6] to-blue-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 hover:brightness-110 transition">
@@ -1961,7 +2013,7 @@ export default function App() {
                 <input required type="text" value={newUnit.portalPassword} onChange={(e) => setNewUnit({ ...newUnit, portalPassword: e.target.value })} placeholder="1234" className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
               </div>
               <div>
-                <label className="block text-slate-400 mb-1 font-semibold">وديعة الصيانة</label>
+                <label className="block text-slate-400 mb-1 font-semibold">وديعة الصيانة (10% من الشراء)</label>
                 <input type="number" value={newUnit.maintenanceDeposit} onChange={(e) => setNewUnit({ ...newUnit, maintenanceDeposit: e.target.value })} className="w-full bg-[#070F1B] border border-slate-700 rounded-xl p-2.5 text-slate-200" />
               </div>
             </div>
@@ -2299,19 +2351,31 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, o
 
       <p className="font-bold text-slate-100">{ticket.title}</p>
       <p className="text-[10px] text-slate-400">الفني: {ticket.assignedTo}</p>
+      {ticket.billingType !== "غير محدد" && (
+        <p className="text-[10px] text-slate-300">
+          {ticket.billingType === "داخل العقد"
+            ? `داخل العقد • تكلفة مخصومة من الوديعة: ${Number(ticket.serviceFee || 0).toLocaleString()} ج.م`
+            : `خارج العقد • المبلغ على العميل: ${Number(ticket.serviceFee || 0).toLocaleString()} ج.م (${ticket.approvalStatus})`}
+        </p>
+      )}
 
       {canManageTickets && ticket.status !== "resolved" && (
         <div className="bg-[#070F1B] border border-slate-800 rounded-lg p-2.5 space-y-2 text-[10px]">
           <div className="grid grid-cols-2 gap-1.5">
             <select value={evalBillingType} onChange={(e) => setEvalBillingType(e.target.value)} className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200">
-              <option value="داخل العقد">داخل العقد</option>
-              <option value="خارج العقد">خارج العقد</option>
+              <option value="داخل العقد">داخل العقد (من الوديعة)</option>
+              <option value="خارج العقد">خارج العقد (على العميل)</option>
             </select>
             <input type="text" value={evalTechnician} onChange={(e) => setEvalTechnician(e.target.value)} placeholder="الفني" className="bg-[#0B192C] border border-slate-700 rounded px-2 py-1 text-slate-200" />
           </div>
-          {evalBillingType === "خارج العقد" && (
-            <input type="number" min="1" value={evalFee} onChange={(e) => setEvalFee(e.target.value)} placeholder="المبلغ (ج.م)" className="w-full bg-[#0B192C] border border-amber-500/40 rounded px-2 py-1 text-slate-200" />
-          )}
+          <input
+            type="number"
+            min="0"
+            value={evalFee}
+            onChange={(e) => setEvalFee(e.target.value)}
+            placeholder={evalBillingType === "داخل العقد" ? "تكلفة الصيانة من الوديعة (ج.م)" : "مبلغ الصيانة خارج العقد (ج.م)"}
+            className={`w-full bg-[#0B192C] border rounded px-2 py-1 text-slate-200 ${evalBillingType === "خارج العقد" ? "border-amber-500/40" : "border-cyan-500/30"}`}
+          />
           <div className="flex flex-wrap gap-1.5">
             <button type="button" onClick={() => onEvaluate({ billingType: evalBillingType, serviceFee: evalFee, assignedTo: evalTechnician })} className="bg-[#00D8F6]/20 text-[#00D8F6] border border-[#00D8F6]/40 px-2.5 py-1 rounded font-bold">
               حفظ التحديد
@@ -2335,7 +2399,7 @@ function TicketCard({ ticket, canManageTickets, canDelete, onMove, onEvaluate, o
           }`}
         >
           <FileCheck2 className="w-3.5 h-3.5" />
-          {isOutside ? "حل وإصدار مطالبة" : "حل وإغلاق البلاغ"}
+          {isOutside ? "حل وإصدار مطالبة" : "حل وإغلاق البلاغ (خصم من الوديعة)"}
         </button>
       )}
 
